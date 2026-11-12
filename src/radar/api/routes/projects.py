@@ -7,15 +7,28 @@ from sqlalchemy.exc import IntegrityError
 from radar.api.deps import ContainerDep, ProjectDep, SessionDep
 from radar.api.errors import ProblemError
 from radar.api.schemas import ProjectCreate, ProjectOut, ReleaseOut
+from radar.container import Container
 from radar.db.models import Project, Release
 
 router = APIRouter(prefix="/v1/projects", tags=["projects"])
 
 
+def _out(project: Project, container: Container) -> ProjectOut:
+    return ProjectOut(
+        slug=project.slug,
+        tracker=project.tracker,
+        tracker_key=project.tracker_key,
+        code_host=project.code_host,
+        repository=project.repository,
+        created_at=project.created_at,
+        item_url_template=container.connectors.tracker(project.tracker).item_url_template,
+    )
+
+
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=ProjectOut)
 async def create_project(
     body: ProjectCreate, session: SessionDep, container: ContainerDep, response: Response
-) -> Project:
+) -> ProjectOut:
     """Track a project. Its releases are fetched immediately, which also validates the key."""
     project = Project(
         slug=body.slug,
@@ -31,18 +44,20 @@ async def create_project(
         raise ProblemError(409, "Project already exists", "Slug or tracker key is taken.") from exc
 
     await container.sync.refresh_releases(session, project)
+    await session.refresh(project)
     response.headers["Location"] = f"/v1/projects/{project.slug}"
-    return project
+    return _out(project, container)
 
 
 @router.get("", response_model=list[ProjectOut])
-async def list_projects(session: SessionDep) -> list[Project]:
-    return list(await session.scalars(select(Project).order_by(Project.slug)))
+async def list_projects(session: SessionDep, container: ContainerDep) -> list[ProjectOut]:
+    projects = await session.scalars(select(Project).order_by(Project.slug))
+    return [_out(project, container) for project in projects]
 
 
 @router.get("/{slug}", response_model=ProjectOut)
-async def get_project(project: ProjectDep) -> Project:
-    return project
+async def get_project(project: ProjectDep, container: ContainerDep) -> ProjectOut:
+    return _out(project, container)
 
 
 @router.get("/{slug}/releases", response_model=list[ReleaseOut])

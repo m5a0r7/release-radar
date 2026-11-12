@@ -34,6 +34,7 @@ class Connectors:
         self._jira = JiraTracker(
             RetryingFetcher(self._jira_client, "jira", settings.http_max_retries),
             page_size=settings.jira_page_size,
+            base_url=str(settings.jira_base_url),
         )
         self._github = GitHubCodeHost(
             RetryingFetcher(self._github_client, "github", settings.http_max_retries),

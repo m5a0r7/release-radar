@@ -81,6 +81,8 @@ class CodeChangeRecord:
 
 class WorkTracker(Protocol):
     name: str
+    item_url_template: str
+    """Browser URL of an item, with `{key}` as the placeholder."""
 
     async def list_releases(self, project_key: str) -> list[ReleaseRecord]: ...
 

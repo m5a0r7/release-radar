@@ -91,6 +91,7 @@ async def test_create_project_fetches_releases(client: httpx.AsyncClient, upstre
 
     assert created.status_code == 201
     assert created.headers["location"] == "/v1/projects/demo"
+    assert created.json()["item_url_template"] == f"{JIRA}browse/{{key}}"
     assert duplicate.status_code == 409
     assert duplicate.headers["content-type"] == "application/problem+json"
     assert [r["name"] for r in releases.json()] == ["1.0", "0.9"]

@@ -20,14 +20,16 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     slug: str
     tracker: str
     tracker_key: str
     code_host: str | None
     repository: str | None
     created_at: datetime
+    item_url_template: str = Field(
+        description="Browser URL of a work item, with `{key}` as the placeholder.",
+        examples=["https://issues.apache.org/jira/browse/{key}"],
+    )
 
 
 class ReleaseOut(BaseModel):

@@ -40,9 +40,10 @@ class JiraTracker:
 
     name = "jira"
 
-    def __init__(self, fetcher: RetryingFetcher, page_size: int) -> None:
+    def __init__(self, fetcher: RetryingFetcher, page_size: int, base_url: str) -> None:
         self._fetcher = fetcher
         self._page_size = page_size
+        self.item_url_template = f"{base_url.rstrip('/')}/browse/{{key}}"
 
     async def list_releases(self, project_key: str) -> list[ReleaseRecord]:
         _require(PROJECT_KEY_RE, project_key, "project key")

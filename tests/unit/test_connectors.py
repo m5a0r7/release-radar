@@ -101,7 +101,7 @@ async def test_jira_paginates_and_normalizes_issues(jira_client: httpx.AsyncClie
         side_effect=[httpx.Response(200, json=p) for p in pages]
     )
 
-    tracker = JiraTracker(fetcher(jira_client), page_size=1)
+    tracker = JiraTracker(fetcher(jira_client), page_size=1, base_url=JIRA)
     items = [i async for page in tracker.iter_release_items("DEMO", "100", None) for i in page]
 
     assert [i.key for i in items] == ["K-1", "K-2"]
@@ -138,14 +138,14 @@ async def test_jira_refetches_truncated_changelog(jira_client: httpx.AsyncClient
     )
     respx.get(f"{JIRA}rest/api/2/issue/1").mock(return_value=httpx.Response(200, json=full))
 
-    tracker = JiraTracker(fetcher(jira_client), page_size=50)
+    tracker = JiraTracker(fetcher(jira_client), page_size=50, base_url=JIRA)
     [page] = [p async for p in tracker.iter_release_items("DEMO", "100", None)]
 
     assert len(page[0].events) == 1
 
 
 async def test_jira_rejects_unsafe_identifiers(jira_client: httpx.AsyncClient) -> None:
-    tracker = JiraTracker(fetcher(jira_client), page_size=50)
+    tracker = JiraTracker(fetcher(jira_client), page_size=50, base_url=JIRA)
 
     with pytest.raises(ValueError, match="release id"):
         async for _ in tracker.iter_release_items("DEMO", "1 OR project = SECRET", None):
