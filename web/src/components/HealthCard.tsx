@@ -7,7 +7,7 @@ export function HealthCard({ report, highlighted }: { report: DriftReport; highl
   const status = STATUS_STYLES[report.status]
 
   return (
-    <Card id="section-forecast" highlighted={highlighted} className="lg:col-span-2">
+    <Card id="section-forecast" highlighted={highlighted}>
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">

@@ -171,17 +171,15 @@ export default function App() {
               latest data.
             </div>
           )}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <HealthCard report={drift.data} highlighted={highlighted === 'forecast'} />
-            <MetricsGrid
-              report={drift.data}
-              itemUrlTemplate={project.item_url_template}
-              highlighted={highlighted}
-            />
-            <Suspense fallback={<Spinner label="Loading chart…" />}>
-              <ThroughputChart report={drift.data} highlighted={highlighted === 'throughput'} />
-            </Suspense>
-          </div>
+          <HealthCard report={drift.data} highlighted={highlighted === 'forecast'} />
+          <MetricsGrid
+            report={drift.data}
+            itemUrlTemplate={project.item_url_template}
+            highlighted={highlighted}
+          />
+          <Suspense fallback={<Spinner label="Loading chart…" />}>
+            <ThroughputChart report={drift.data} highlighted={highlighted === 'throughput'} />
+          </Suspense>
           <NarrativePanel
             narrative={narrative.data}
             loading={narrative.isFetching}

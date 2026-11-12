@@ -1,10 +1,13 @@
 import { itemUrl } from '../lib/format'
 
+const SHOWN = 6
+
 export function ItemLinks({ keys, template }: { keys: string[]; template: string }) {
   if (keys.length === 0) return null
+  const hidden = keys.length - SHOWN
   return (
-    <ul className="mt-3 flex flex-wrap gap-1.5">
-      {keys.map((key) => (
+    <ul className="mt-3 flex flex-wrap items-center gap-1.5">
+      {keys.slice(0, SHOWN).map((key) => (
         <li key={key}>
           <a
             href={itemUrl(template, key)}
@@ -16,6 +19,7 @@ export function ItemLinks({ keys, template }: { keys: string[]; template: string
           </a>
         </li>
       ))}
+      {hidden > 0 && <li className="text-[11px] text-slate-400">+{hidden} more</li>}
     </ul>
   )
 }
