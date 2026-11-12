@@ -36,7 +36,8 @@ export function SyncButton({ slug, release }: { slug: string; release: string })
             {progress.work_items ?? 0} tickets · {progress.code_changes ?? 0} PRs
           </>
         )}
-        {job.data?.status === 'succeeded' && 'Synced'}
+        {job.data?.status === 'succeeded' &&
+          `Synced · ${progress?.work_items ?? 0} tickets, ${progress?.code_changes ?? 0} PRs updated`}
         {job.data?.status === 'failed' && <span className="text-rose-700">Sync failed</span>}
         {start.error && !(start.error instanceof ApiError && start.error.status === 409) && (
           <span className="text-rose-700">Could not start sync</span>

@@ -8,7 +8,7 @@ import { MetricsGrid } from './components/MetricsGrid'
 import { NarrativePanel } from './components/NarrativePanel'
 import { SyncButton } from './components/SyncButton'
 import { ErrorNotice, Field, inputClass, Spinner } from './components/ui'
-import { daysBefore, isoDate } from './lib/format'
+import { daysBefore, isoDate, periodProblem } from './lib/format'
 import { useUrlState } from './lib/useUrlState'
 
 // The chart library is the largest dependency; load it after the first paint.
@@ -39,9 +39,15 @@ export default function App() {
     [state.from, state.to, state.target],
   )
   const release = state.release || undefined
-  const drift = useDrift(project?.slug, release, period)
+  const problem = periodProblem(state.from, state.to)
+  const drift = useDrift(project?.slug, release, period, problem === null)
   const narrativeKey = `${state.project}/${state.release}`
-  const narrative = useNarrative(project?.slug, release, period, explainFor === narrativeKey)
+  const narrative = useNarrative(
+    project?.slug,
+    release,
+    period,
+    problem === null && explainFor === narrativeKey,
+  )
 
   useEffect(() => {
     if (projects.data?.length && !projects.data.some((p) => p.slug === state.project)) {
@@ -144,13 +150,18 @@ export default function App() {
             onChange={(e) => setState({ target: e.target.value })}
           />
         </Field>
+        {problem && (
+          <p role="alert" className="self-center text-xs text-amber-700">
+            {problem}
+          </p>
+        )}
         <div className="ml-auto">
           {release && <SyncButton slug={project.slug} release={release} />}
         </div>
       </div>
 
       {drift.error && <ErrorNotice error={drift.error} />}
-      {drift.isPending && release && <Spinner label="Computing drift…" />}
+      {drift.isLoading && <Spinner label="Computing drift…" />}
 
       {drift.data && (
         <>

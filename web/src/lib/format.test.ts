@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { daysBefore, itemUrl, percent, sectionOf, signedPercent } from './format'
+import { daysBefore, itemUrl, percent, periodProblem, sectionOf, signedPercent } from './format'
 
 describe('format', () => {
   it('formats ratios and missing values', () => {
@@ -12,6 +12,13 @@ describe('format', () => {
 
   it('does date arithmetic in UTC', () => {
     expect(daysBefore('2026-03-01', 1)).toBe('2026-02-28')
+  })
+
+  it('rejects periods the API would refuse, such as half-typed years', () => {
+    expect(periodProblem('2026-09-18', '2026-11-12')).toBeNull()
+    expect(periodProblem('1520-09-10', '2026-11-12')).toMatch(/at most 366 days/)
+    expect(periodProblem('5202-09-10', '2026-11-12')).toMatch(/before the end/)
+    expect(periodProblem('', '2026-11-12')).toMatch(/Pick a start/)
   })
 
   it('builds item links safely', () => {

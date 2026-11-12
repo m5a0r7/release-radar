@@ -43,10 +43,15 @@ export function useReleases(slug: string | undefined) {
   })
 }
 
-export function useDrift(slug: string | undefined, release: string | undefined, period: Period) {
+export function useDrift(
+  slug: string | undefined,
+  release: string | undefined,
+  period: Period,
+  enabled: boolean,
+) {
   return useQuery({
     queryKey: ['drift', slug, release, period],
-    enabled: slug !== undefined && release !== undefined,
+    enabled: enabled && slug !== undefined && release !== undefined,
     placeholderData: keepPreviousData,
     queryFn: () =>
       unwrap(

@@ -28,6 +28,18 @@ export function daysBefore(iso: string, days: number): string {
   return isoDate(date)
 }
 
+export const MAX_PERIOD_DAYS = 366
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+/** Why a period cannot be queried yet, or null. Date inputs emit odd dates while a year is typed. */
+export function periodProblem(from: string, to: string): string | null {
+  if (!ISO_DATE.test(from) || !ISO_DATE.test(to)) return 'Pick a start and end date.'
+  if (from > to) return 'The start date must be before the end date.'
+  const days = (Date.parse(to) - Date.parse(from)) / 86_400_000 + 1
+  if (days > MAX_PERIOD_DAYS) return `Pick a period of at most ${MAX_PERIOD_DAYS} days.`
+  return null
+}
+
 export function itemUrl(template: string, key: string): string {
   return template.replace('{key}', encodeURIComponent(key))
 }
