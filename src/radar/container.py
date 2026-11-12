@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from radar.auth.github import GitHubOAuth
 from radar.config import Settings
 from radar.connectors.registry import Connectors
 from radar.db.session import create_engine, create_session_factory
@@ -21,6 +23,8 @@ class Container:
     sync: SyncService
     narratives: NarrativeService
     llm: AnthropicLLM | None
+    oauth_client: httpx.AsyncClient
+    github_oauth: GitHubOAuth | None
 
     @classmethod
     def build(cls, settings: Settings) -> "Container":
@@ -28,6 +32,10 @@ class Container:
         sessions = create_session_factory(engine)
         connectors = Connectors(settings)
         llm = AnthropicLLM(settings) if settings.llm_provider == "anthropic" else None
+        oauth_client = httpx.AsyncClient(timeout=httpx.Timeout(15.0))
+        github_oauth = (
+            GitHubOAuth(settings, oauth_client) if settings.github_login_enabled else None
+        )
         return cls(
             settings=settings,
             engine=engine,
@@ -36,10 +44,13 @@ class Container:
             sync=SyncService(sessions, connectors, settings.github_backfill_days),
             narratives=NarrativeService(llm),
             llm=llm,
+            oauth_client=oauth_client,
+            github_oauth=github_oauth,
         )
 
     async def aclose(self) -> None:
         if self.llm is not None:
             await self.llm.aclose()
+        await self.oauth_client.aclose()
         await self.connectors.aclose()
         await self.engine.dispose()

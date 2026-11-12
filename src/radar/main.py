@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from radar.api.errors import install_error_handlers
 from radar.api.middleware import RequestContextMiddleware
-from radar.api.routes import health, insights, projects, syncs
+from radar.api.routes import auth, connect, health, insights, projects, syncs
 from radar.config import Settings, get_settings
 from radar.container import Container
 from radar.logging import configure_logging
@@ -32,6 +32,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_middleware(RequestContextMiddleware)
     install_error_handlers(app)
-    for module in (health, projects, syncs, insights):
+    for module in (health, auth, projects, connect, syncs, insights):
         app.include_router(module.router)
     return app

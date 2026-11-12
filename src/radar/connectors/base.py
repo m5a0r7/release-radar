@@ -79,10 +79,29 @@ class CodeChangeRecord:
     closed_at: datetime | None
 
 
+@dataclass(frozen=True, slots=True)
+class TrackerProjectRecord:
+    key: str
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class RepositoryRecord:
+    full_name: str
+    description: str | None
+    language: str | None
+    stars: int
+    pushed_at: datetime | None
+
+
 class WorkTracker(Protocol):
     name: str
     item_url_template: str
     """Browser URL of an item, with `{key}` as the placeholder."""
+    search_url_template: str
+    """Browser URL listing items, with `{keys}` as a comma-separated placeholder."""
+
+    async def describe_project(self, project_key: str) -> TrackerProjectRecord: ...
 
     async def list_releases(self, project_key: str) -> list[ReleaseRecord]: ...
 
@@ -95,6 +114,12 @@ class WorkTracker(Protocol):
 
 class CodeHost(Protocol):
     name: str
+
+    async def recent_changes(self, repository: str, limit: int) -> list[CodeChangeRecord]:
+        """The most recently created changes, to check how a repository links to tickets."""
+        ...
+
+    async def search_repositories(self, query: str, limit: int) -> list[RepositoryRecord]: ...
 
     def iter_changes(
         self, repository: str, updated_since: datetime

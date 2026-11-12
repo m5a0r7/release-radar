@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
@@ -7,8 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from radar.api.errors import ProblemError
+from radar.auth import accounts, sessions
 from radar.container import Container
-from radar.db.models import Project, Release
+from radar.db.models import Project, Release, User, Workspace
 
 DEFAULT_PERIOD_DAYS = 56
 
@@ -31,8 +33,31 @@ SlugPath = Annotated[str, Path(pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")]
 ReleasePath = Annotated[str, Path(min_length=1, max_length=255)]
 
 
-async def get_project(slug: SlugPath, session: SessionDep) -> Project:
-    project = await session.scalar(select(Project).where(Project.slug == slug))
+@dataclass(frozen=True, slots=True)
+class Principal:
+    user: User
+    workspace: Workspace
+
+
+async def get_principal(request: Request, session: SessionDep) -> Principal:
+    token = request.cookies.get(sessions.COOKIE_NAME)
+    user = await sessions.resolve(session, token) if token else None
+    if user is None:
+        raise ProblemError(401, "Not signed in", "Sign in to continue.")
+    workspaces = await accounts.workspaces_of(session, user.id)
+    if not workspaces:
+        raise ProblemError(403, "No workspace", "This account does not belong to a workspace.")
+    return Principal(user=user, workspace=workspaces[0])
+
+
+PrincipalDep = Annotated[Principal, Depends(get_principal)]
+
+
+async def get_project(slug: SlugPath, session: SessionDep, principal: PrincipalDep) -> Project:
+    # Projects in other workspaces are reported as missing, so their existence does not leak.
+    project = await session.scalar(
+        select(Project).where(Project.workspace_id == principal.workspace.id, Project.slug == slug)
+    )
     if project is None:
         raise ProblemError(404, "Project not found", f"No project with slug '{slug}'.")
     return project

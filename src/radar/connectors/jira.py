@@ -8,6 +8,7 @@ from radar.connectors.base import (
     EventRecord,
     ReleaseRecord,
     StatusCategory,
+    TrackerProjectRecord,
     WorkItemRecord,
 )
 from radar.connectors.http import RetryingFetcher
@@ -43,7 +44,14 @@ class JiraTracker:
     def __init__(self, fetcher: RetryingFetcher, page_size: int, base_url: str) -> None:
         self._fetcher = fetcher
         self._page_size = page_size
-        self.item_url_template = f"{base_url.rstrip('/')}/browse/{{key}}"
+        base = base_url.rstrip("/")
+        self.item_url_template = f"{base}/browse/{{key}}"
+        self.search_url_template = f"{base}/issues/?jql=key%20in%20({{keys}})"
+
+    async def describe_project(self, project_key: str) -> TrackerProjectRecord:
+        _require(PROJECT_KEY_RE, project_key, "project key")
+        raw = (await self._fetcher.get(f"rest/api/2/project/{project_key}")).json()
+        return TrackerProjectRecord(key=raw["key"], name=raw.get("name") or raw["key"])
 
     async def list_releases(self, project_key: str) -> list[ReleaseRecord]:
         _require(PROJECT_KEY_RE, project_key, "project key")

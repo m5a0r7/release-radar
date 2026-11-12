@@ -1,10 +1,12 @@
 import asyncio
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
 import pytest
+import respx
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
@@ -15,6 +17,7 @@ from radar.container import Container
 from radar.db.models import Base
 from radar.jobs.worker import Worker
 from radar.main import create_app
+from tests.integration.demo import VERSIONS, issues, pulls
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://radar:radar@localhost:5432/radar_test"
@@ -64,7 +67,20 @@ async def session(container: Container) -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture
-async def client(container: Container, settings: Settings) -> AsyncIterator[httpx.AsyncClient]:
+async def anonymous(container: Container, settings: Settings) -> AsyncIterator[httpx.AsyncClient]:
+    async with client_for(container, settings) as client:
+        yield client
+
+
+@pytest.fixture
+async def client(anonymous: httpx.AsyncClient) -> httpx.AsyncClient:
+    """Signed in as the demo user."""
+    assert (await anonymous.post("/v1/auth/demo")).status_code == 200
+    return anonymous
+
+
+@asynccontextmanager
+async def client_for(container: Container, settings: Settings) -> AsyncIterator[httpx.AsyncClient]:
     app = create_app(settings)
     app.state.container = container
     transport = httpx.ASGITransport(app=app)
@@ -75,3 +91,12 @@ async def client(container: Container, settings: Settings) -> AsyncIterator[http
 @pytest.fixture
 def worker(container: Container, settings: Settings) -> Worker:
     return Worker(container.sessions, container.sync, settings)
+
+
+@pytest.fixture
+def upstream() -> Iterator[respx.MockRouter]:
+    with respx.mock(assert_all_called=False) as mock:
+        mock.get(f"{JIRA}rest/api/2/project/DEMO/versions").respond(200, json=VERSIONS)
+        mock.get(f"{JIRA}rest/api/2/search").respond(200, json={"total": 3, "issues": issues()})
+        mock.get(f"{GITHUB}repos/apache/demo/pulls").respond(200, json=pulls())
+        yield mock

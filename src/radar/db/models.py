@@ -43,18 +43,85 @@ class Base(DeclarativeBase):
     }
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str | None] = mapped_column(String(320))
+    avatar_url: Mapped[str | None] = mapped_column(String(512))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class Identity(Base):
+    """A login with an external provider. One user can sign in through several providers."""
+
+    __tablename__ = "identities"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    provider: Mapped[str] = mapped_column(String(32))
+    subject: Mapped[str] = mapped_column(String(128))
+    login: Mapped[str | None] = mapped_column(String(255))
+
+    __table_args__ = (
+        UniqueConstraint("provider", "subject", name="uq_identities_provider_subject"),
+    )
+
+
+class Workspace(Base):
+    """The tenant boundary: projects belong to a workspace, users see their workspaces only."""
+
+    __tablename__ = "workspaces"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class Membership(Base):
+    __tablename__ = "memberships"
+
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class UserSession(Base):
+    """Server-side session. Only a hash of the cookie token is stored."""
+
+    __tablename__ = "sessions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    expires_at: Mapped[datetime]
+
+
 class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    slug: Mapped[str] = mapped_column(String(64), unique=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"))
+    slug: Mapped[str] = mapped_column(String(64))
     tracker: Mapped[str] = mapped_column(String(32))
     tracker_key: Mapped[str] = mapped_column(String(32))
     code_host: Mapped[str | None] = mapped_column(String(32))
     repository: Mapped[str | None] = mapped_column(String(140))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
-    __table_args__ = (UniqueConstraint("tracker", "tracker_key", name="uq_projects_tracker_key"),)
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "slug", name="uq_projects_workspace_slug"),
+        UniqueConstraint(
+            "workspace_id", "tracker", "tracker_key", name="uq_projects_workspace_tracker_key"
+        ),
+    )
 
 
 class Release(Base):
@@ -67,6 +134,8 @@ class Release(Base):
     released: Mapped[bool] = mapped_column(Boolean)
     archived: Mapped[bool] = mapped_column(Boolean)
     release_date: Mapped[date | None] = mapped_column(Date)
+    target_date: Mapped[date | None] = mapped_column(Date)
+    """Set by users; overrides the tracker's release date as the forecast target."""
 
     __table_args__ = (
         UniqueConstraint("project_id", "external_id", name="uq_releases_project_external"),

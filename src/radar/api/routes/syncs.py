@@ -1,11 +1,12 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Path, Response, status
+from sqlalchemy import select
 
-from radar.api.deps import ContainerDep, ProjectDep, ReleaseDep, SessionDep
+from radar.api.deps import ContainerDep, PrincipalDep, ProjectDep, ReleaseDep, SessionDep
 from radar.api.errors import ProblemError
 from radar.api.schemas import JobOut
-from radar.db.models import Job
+from radar.db.models import Job, Project
 from radar.jobs import queue
 from radar.jobs.queue import SYNC_RELEASE
 
@@ -48,8 +49,14 @@ async def start_sync(
 
 
 @router.get("/jobs/{job_id}", response_model=JobOut)
-async def get_job(job_id: Annotated[int, Path(ge=1)], session: SessionDep) -> Job:
-    job = await session.get(Job, job_id)
+async def get_job(
+    job_id: Annotated[int, Path(ge=1)], session: SessionDep, principal: PrincipalDep
+) -> Job:
+    job = await session.scalar(
+        select(Job)
+        .join(Project, Project.id == Job.project_id)
+        .where(Job.id == job_id, Project.workspace_id == principal.workspace.id)
+    )
     if job is None:
         raise ProblemError(404, "Job not found")
     return job

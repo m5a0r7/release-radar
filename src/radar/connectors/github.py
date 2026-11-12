@@ -5,11 +5,12 @@ from typing import Any
 
 import httpx
 
-from radar.connectors.base import ChangeState, CodeChangeRecord
+from radar.connectors.base import ChangeState, CodeChangeRecord, RepositoryRecord
 from radar.connectors.errors import UpstreamError
 from radar.connectors.http import RetryingFetcher
 
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
+SEARCH_RE = re.compile(r"^[A-Za-z0-9._/-]{1,100}$")
 PAGE_SIZE = 100
 
 
@@ -22,11 +23,38 @@ class GitHubCodeHost:
         self._fetcher = fetcher
         self._api_host = httpx.URL(api_url).host
 
+    async def recent_changes(self, repository: str, limit: int) -> list[CodeChangeRecord]:
+        _require_repository(repository)
+        response = await self._fetcher.get(
+            f"repos/{repository}/pulls",
+            params={"state": "all", "sort": "created", "direction": "desc", "per_page": limit},
+        )
+        return [_parse_pull(raw) for raw in response.json()]
+
+    async def search_repositories(self, query: str, limit: int) -> list[RepositoryRecord]:
+        if not SEARCH_RE.fullmatch(query):
+            raise ValueError(f"invalid repository search: {query!r}")
+        owner, _, name = query.rpartition("/")
+        terms = f"{name} in:name user:{owner}" if owner else f"{name} in:name"
+        response = await self._fetcher.get(
+            "search/repositories", params={"q": terms, "per_page": limit, "sort": "stars"}
+        )
+        return [
+            RepositoryRecord(
+                full_name=raw["full_name"],
+                description=raw.get("description"),
+                language=raw.get("language"),
+                stars=int(raw.get("stargazers_count", 0)),
+                pushed_at=_parse(raw.get("pushed_at")),
+            )
+            for raw in response.json().get("items", [])
+            if not raw.get("private")
+        ]
+
     async def iter_changes(
         self, repository: str, updated_since: datetime
     ) -> AsyncIterator[list[CodeChangeRecord]]:
-        if not REPOSITORY_RE.fullmatch(repository):
-            raise ValueError(f"invalid repository: {repository!r}")
+        _require_repository(repository)
 
         url: str | None = f"repos/{repository}/pulls"
         params: dict[str, str | int] | None = {
@@ -54,6 +82,11 @@ class GitHubCodeHost:
         if httpx.URL(next_link).host != self._api_host:
             raise UpstreamError(self.name, "pagination link points to an unexpected host")
         return str(next_link)
+
+
+def _require_repository(repository: str) -> None:
+    if not REPOSITORY_RE.fullmatch(repository):
+        raise ValueError(f"invalid repository: {repository!r}")
 
 
 def _parse_pull(raw: dict[str, Any]) -> CodeChangeRecord:

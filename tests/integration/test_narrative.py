@@ -2,7 +2,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from radar.db.models import Project, Release
+from radar.db.models import Project, Release, Workspace
 from radar.insights.drift import compute_drift
 from radar.insights.evidence import build_evidence
 from radar.insights.schemas import DriftReport
@@ -30,7 +30,10 @@ class FakeLLM:
 
 
 async def report(session: AsyncSession) -> DriftReport:
-    project = Project(slug="demo", tracker="jira", tracker_key="DEMO")
+    workspace = Workspace(name="Test")
+    session.add(workspace)
+    await session.flush()
+    project = Project(workspace_id=workspace.id, slug="demo", tracker="jira", tracker_key="DEMO")
     session.add(project)
     await session.flush()
     release = Release(

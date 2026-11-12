@@ -13,7 +13,8 @@ from radar.narrative.schemas import NarrativeResponse
 
 router = APIRouter(prefix="/v1/projects/{slug}/releases/{release}", tags=["insights"])
 
-CACHE_CONTROL = "private, max-age=60"
+# Revalidate every time (cheap, thanks to the ETag) so a finished sync shows up immediately.
+CACHE_CONTROL = "private, no-cache"
 
 
 async def _report(
