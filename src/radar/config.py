@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, HttpUrl, SecretStr
+from pydantic import Field, HttpUrl, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     job_max_attempts: int = 3
 
     max_period_days: int = Field(default=366, ge=7)
+
+    @field_validator("github_token", "anthropic_api_key", mode="before")
+    @classmethod
+    def _blank_secret_is_unset(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
 
 
 @lru_cache
