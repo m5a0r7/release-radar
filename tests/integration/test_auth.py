@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote_plus, urlparse
 
 import httpx
 import pytest
@@ -128,7 +128,32 @@ async def test_forged_state_is_rejected(oauth_client: httpx.AsyncClient) -> None
         "/v1/auth/github/callback", params={"code": "c0de", "state": "attacker"}
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 302
+    assert response.headers["location"].startswith("http://app.test/login?error=")
+    assert "rr_session" not in oauth_client.cookies
+
+
+async def test_cancelled_or_failed_sign_in_returns_to_login(
+    oauth_client: httpx.AsyncClient,
+) -> None:
+    async def start() -> str:
+        login = await oauth_client.get("/v1/auth/github/login")
+        return parse_qs(urlparse(login.headers["location"]).query)["state"][0]
+
+    cancelled = await oauth_client.get(
+        "/v1/auth/github/callback", params={"error": "access_denied", "state": await start()}
+    )
+    state = await start()
+    with respx.mock:
+        respx.post(f"{GITHUB_WEB}/login/oauth/access_token").respond(
+            200, json={"error": "bad_verification_code"}
+        )
+        rejected = await oauth_client.get(
+            "/v1/auth/github/callback", params={"code": "stale", "state": state}
+        )
+
+    assert "cancelled" in unquote_plus(cancelled.headers["location"])
+    assert "did not confirm" in unquote_plus(rejected.headers["location"])
     assert "rr_session" not in oauth_client.cookies
 
 

@@ -5,7 +5,9 @@ import re
 import secrets
 from datetime import timedelta
 from typing import Annotated
+from urllib.parse import urlencode
 
+import structlog
 from fastapi import APIRouter, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
@@ -16,8 +18,10 @@ from radar.api.schemas import AuthConfigOut, MeOut, UserOut, WorkspaceOut
 from radar.auth import accounts, sessions
 from radar.auth.accounts import ExternalIdentity
 from radar.config import Settings
+from radar.connectors.errors import UpstreamError
 from radar.db.models import Identity
 
+log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/v1", tags=["auth"])
 
 STATE_COOKIE = "rr_oauth_state"
@@ -65,16 +69,24 @@ async def github_callback(
     request: Request,
     session: SessionDep,
     container: ContainerDep,
-    code: Annotated[str, Query(max_length=512)],
-    state: Annotated[str, Query(max_length=128)],
+    code: Annotated[str | None, Query(max_length=512)] = None,
+    state: Annotated[str, Query(max_length=128)] = "",
 ) -> RedirectResponse:
-    if container.github_oauth is None:
-        raise ProblemError(404, "GitHub sign-in is not configured")
+    """Browsers land here from GitHub, so failures go back to the login page, not to JSON."""
+    settings = container.settings
     expected, _, encoded_next = request.cookies.get(STATE_COOKIE, "").partition(".")
-    if not expected or not hmac.compare_digest(expected, state):
-        raise ProblemError(400, "Sign-in expired", "Start signing in again.")
+    if container.github_oauth is None:
+        return _login_error(settings, "GitHub sign-in is not configured.")
+    if code is None:
+        return _login_error(settings, "GitHub sign-in was cancelled.")
+    if not expected or not state or not hmac.compare_digest(expected, state):
+        return _login_error(settings, "That sign-in link expired. Please try again.")
+    try:
+        profile = await container.github_oauth.profile(code, _callback_url(settings))
+    except UpstreamError:
+        log.warning("github_sign_in_failed", exc_info=True)
+        return _login_error(settings, "GitHub did not confirm the sign-in. Please try again.")
 
-    profile = await container.github_oauth.profile(code, _callback_url(container.settings))
     user = await accounts.sign_in(
         session,
         ExternalIdentity(
@@ -148,6 +160,15 @@ def _decode(value: str) -> str:
         return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4)).decode()
     except (binascii.Error, UnicodeDecodeError):
         return "/"
+
+
+def _login_error(settings: Settings, message: str) -> RedirectResponse:
+    response = RedirectResponse(
+        f"{settings.app_base_url}/login?{urlencode({'error': message})}",
+        status_code=status.HTTP_302_FOUND,
+    )
+    response.delete_cookie(STATE_COOKIE, path="/v1/auth")
+    return response
 
 
 def _callback_url(settings: Settings) -> str:
