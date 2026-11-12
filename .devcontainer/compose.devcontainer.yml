@@ -1,0 +1,19 @@
+# Paths resolve relative to the first compose file (the project's docker-compose.yml).
+services:
+  dev:
+    image: mcr.microsoft.com/devcontainers/python:1-3.12-bookworm
+    command: sleep infinity
+    volumes:
+      - .:/workspaces/release-radar:cached
+      - venv:/home/vscode/.venv
+      - node_modules:/workspaces/release-radar/web/node_modules
+    environment:
+      DATABASE_URL: postgresql+asyncpg://radar:radar@db:5432/radar
+      TEST_DATABASE_URL: postgresql+asyncpg://radar:radar@db:5432/radar_test
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  venv:
+  node_modules:
