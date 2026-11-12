@@ -1,5 +1,12 @@
 # Paths resolve relative to the first compose file (the project's docker-compose.yml).
+name: release-radar-dev
+
 services:
+  db:
+    # The dev container reaches Postgres over the compose network; this avoids clashing with a
+    # Postgres already running on the host.
+    ports: !reset []
+
   dev:
     image: mcr.microsoft.com/devcontainers/python:1-3.12-bookworm
     command: sleep infinity
