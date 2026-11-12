@@ -10,12 +10,13 @@ See the [README quickstart](README.md#60-second-quickstart): `cp .env.example .e
 
 ```
  web (nginx) ┌──────── api (FastAPI) ────────┐            ┌──── worker ────┐
- React UI ──►│ /projects /syncs /drift       │── jobs ──► │ claim (SKIP    │──► Jira REST
-             │ /narrative                    │  (Postgres)│ LOCKED), sync  │──► GitHub REST
-             └──────┬───────────────▲────────┘            └───────┬────────┘
-                    │ read          │ evidence → Claude           │ upsert pages
-                    ▼               │ → verify → calibrate        ▼
-                 Postgres: projects, releases, work_items, work_item_events,
+ React UI ──►│ /auth /me /connect /projects  │── jobs ──► │ claim (SKIP    │──► Jira REST
+             │ /syncs /drift /narrative      │  (Postgres)│ LOCKED), sync, │──► GitHub REST
+             └──────┬───────────────▲────────┘            │ re-queue (6 h) │
+                    │ read          │ evidence → Claude   └───────┬────────┘
+                    ▼               │ → verify → calibrate        ▼ upsert pages
+                 Postgres: users, identities, workspaces, memberships, sessions,
+                           projects, releases, work_items, work_item_events,
                            code_changes, sync_cursors, jobs, narratives
 ```
 
@@ -48,6 +49,14 @@ the browser talks to one origin and the API needs no CORS. Its TypeScript types 
 from the API's OpenAPI schema, so a backend change that breaks the UI fails type-checking in CI.
 Evidence chips in the narrative link back to the dashboard tile that shows the same number.
 
+Accounts: GitHub OAuth (authorization-code flow, no scopes) creates a user, an identity and a
+personal workspace on first sign-in; every project belongs to a workspace and every project route
+filters by the caller's workspace. Sessions are random tokens stored as SHA-256 hashes, sent as an
+httpOnly `SameSite=Lax` cookie, which together with JSON-only write endpoints is the CSRF defence.
+The connect wizard calls `/v1/connect/*`, the one place where a request (not the worker) talks to
+Jira and GitHub, so a user learns before the first sync whether the key exists and whether the
+repository's PRs mention its tickets at all.
+
 ## Main decisions and trade-offs
 
 - **Jira + GitHub, public Apache data.** This matches what Loop does (planning data plus delivery
@@ -71,14 +80,21 @@ Evidence chips in the narrative link back to the dashboard tile that shows the s
 
 - **Vite + React instead of Next.js.** The dashboard has no SEO needs and the API already
   exists, so a static app behind Nginx is enough; Next.js would add a Node server for no gain.
+- **Own sessions instead of JWTs.** Server-side sessions can be revoked on sign-out and need no
+  key rotation; the cost is one indexed lookup per request.
+- **Workspaces from day one.** Even with one member each, scoping every query by workspace now
+  is far cheaper than retrofitting tenancy later. Inviting teammates is the missing piece.
 - **Devcontainer is optional.** It gives a one-click setup with Postgres and the test database,
   but everything also runs with uv, pnpm and `docker compose up -d db` on the host.
 
 ## What I'd do next with another day
 
-- The small web page from the UX plan: health card, drift chart, and narrative with clickable
-  evidence chips.
-- A scheduler that re-syncs tracked releases every N minutes, plus a webhook receiver.
+- Workspace invitations and roles, and a workspace switcher (the data model already supports
+  several memberships per user).
+- Connecting private repositories and Jira Cloud sites per workspace (GitHub App installation and
+  Atlassian OAuth), instead of one server-wide Jira and public GitHub data.
+- A webhook receiver next to the 6-hourly re-sync.
+- Acting on the suggestion ("move 12 idle tickets to 4.6.0") after the user approves it.
 - An eval suite of synthetic drift scenarios with planted causes, run against the real model
   on prompt changes, to measure hypothesis accuracy and calibration.
 - Rate limiting on the narrative endpoint, which is the expensive one, and Prometheus metrics

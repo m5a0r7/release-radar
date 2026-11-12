@@ -6,8 +6,12 @@ scope change, unplanned work, idle tickets, code/ticket status lag and a forecas
 A second endpoint asks an LLM (Claude) to explain the numbers: findings, a root-cause hypothesis,
 a calibrated confidence score, and an evidence chain that points back to each number.
 
-A dashboard (React, TypeScript, Tailwind) shows the same numbers and lets you click any piece of
-evidence in the explanation to jump to the metric it came from.
+A web app (React, TypeScript, Tailwind) adds accounts and workspaces (sign in with GitHub), a
+wizard that connects a Jira project and checks that its GitHub pull requests actually reference its
+tickets, and a dashboard per release: a one-line verdict ("37% chance 4.5.0 ships by Dec 15"),
+KPI tiles, a burn-up chart with the forecast and target, a "needs attention" list, and the
+explanation, where every piece of evidence links back to the metric it came from. Tracked
+releases re-sync in the background every 6 hours. Light and dark themes.
 
 The demo uses public data (Apache Kafka's Jira and `apache/kafka` on GitHub), so no credentials
 are required.
@@ -21,24 +25,29 @@ cp .env.example .env            # optional: add GITHUB_TOKEN and ANTHROPIC_API_K
 docker compose up --build -d    # postgres, migrations, api, worker, web
 ```
 
-Open the dashboard at <http://localhost:8080>, track `KAFKA` / `apache/kafka`, pick release
-`4.5.0`, press **Sync now**, then **Explain with AI**. The same flow over the API:
+Open <http://localhost:8080>, choose **Try the demo account**, then **Connect project**: Jira key
+`KAFKA`, repository `apache/kafka`, release `4.5.0`, target date of your choice. The first sync
+takes about 30 seconds; then press **Explain**. The same flow over the API:
 
 ```bash
+# 0. Sign in (the demo account; the session is an httpOnly cookie)
+curl -s -c jar -X POST localhost:8000/v1/auth/demo
 
 # 1. Track a project (fetches its releases from Jira)
-curl -s -X POST localhost:8000/v1/projects -H 'content-type: application/json' \
+curl -s -b jar -X POST localhost:8000/v1/projects -H 'content-type: application/json' \
   -d '{"slug":"kafka","tracker_key":"KAFKA","repository":"apache/kafka"}'
 
-# 2. Sync a release in the background (202 + Location of the job)
-curl -s -X POST localhost:8000/v1/projects/kafka/releases/4.5.0/syncs
-curl -s localhost:8000/v1/jobs/1            # poll until "status": "succeeded" (~30s)
+# 2. Set a target date, then sync the release in the background (202 + Location of the job)
+curl -s -b jar -X PATCH localhost:8000/v1/projects/kafka/releases/4.5.0 \
+  -H 'content-type: application/json' -d '{"target_date":"2026-12-15"}'
+curl -s -b jar -X POST localhost:8000/v1/projects/kafka/releases/4.5.0/syncs
+curl -s -b jar localhost:8000/v1/jobs/1     # poll until "status": "succeeded" (~30s)
 
 # 3. Insight: plan-vs-actual metrics for the last 8 weeks
-curl -s "localhost:8000/v1/projects/kafka/releases/4.5.0/drift?target_date=2026-12-15"
+curl -s -b jar localhost:8000/v1/projects/kafka/releases/4.5.0/drift
 
 # 4. Narrative: LLM explanation with hypothesis, confidence and evidence
-curl -s "localhost:8000/v1/projects/kafka/releases/4.5.0/narrative?target_date=2026-12-15"
+curl -s -b jar localhost:8000/v1/projects/kafka/releases/4.5.0/narrative
 ```
 
 Interactive API docs: <http://localhost:8000/docs>.
@@ -48,13 +57,40 @@ Claude, set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` in `.env`, then
 `docker compose up -d`. Without `GITHUB_TOKEN`, GitHub allows 60 requests/hour, which is enough
 for one 120-day sync of `apache/kafka`; a token with no scopes raises it to 5,000.
 
+### Sign in with GitHub
+
+Signing in is also signing up: the first sign-in creates the account and a personal workspace.
+Each workspace sees only its own projects. To enable GitHub sign-in:
+
+1. Create an OAuth app at <https://github.com/settings/developers> with the callback URL
+   `http://localhost:8080/v1/auth/github/callback` (use `http://localhost:5173` in both places with `make web`).
+2. Set `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` and `APP_BASE_URL` in `.env`.
+
+The app asks GitHub for no scopes and discards the access token after reading the profile.
+Sessions are opaque server-side tokens (only their SHA-256 is stored) in an httpOnly,
+`SameSite=Lax` cookie; set `SESSION_COOKIE_SECURE=true` behind HTTPS. The demo account
+(`AUTH_DEV_LOGIN`) is refused when `ENVIRONMENT=production`. Projects created before accounts
+existed land in an "Imported projects" workspace that the first user to sign in adopts.
+
 ## API
+
+Everything except `/v1/auth/*` and the health checks needs a session (`401` otherwise) and is
+scoped to the caller's workspace (another workspace's project is a `404`).
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/v1/projects` | Track a Jira project, optionally linked to a GitHub repository. `201`, `409` if it exists, `422` if Jira does not know the key. |
-| `GET` | `/v1/projects`, `/v1/projects/{slug}` | List or read tracked projects. |
+| `GET` | `/v1/auth/config` | Which sign-in methods are enabled. |
+| `GET` | `/v1/auth/github/login`, `/v1/auth/github/callback` | GitHub OAuth (state cookie, same-app `?next=` only). |
+| `POST` | `/v1/auth/demo`, `/v1/auth/logout` | Demo sign-in (development only); sign out. |
+| `GET` | `/v1/me` | The signed-in user and workspace. |
+| `POST` | `/v1/connect/tracker` | Check a Jira key: project name, upcoming releases, whether it is already connected. |
+| `POST` | `/v1/connect/code` | Sample a repository's last 100 PRs and report how many reference the Jira key. |
+| `GET` | `/v1/connect/repositories?q=` | Search public GitHub repositories (`owner/name` searches one owner). |
+| `POST` | `/v1/projects` | Track a Jira project, optionally linked to a GitHub repository. `201`, `409` if the workspace already has that name or key, `422` if Jira does not know the key. |
+| `GET` | `/v1/projects`, `/v1/projects/{slug}` | List or read projects, with each tracked release's last sync. |
+| `DELETE` | `/v1/projects/{slug}` | Remove a project and its synced data. |
 | `GET` | `/v1/projects/{slug}/releases` | Releases (`?released=false`, `?include_archived=true`, `?limit=`). |
+| `PATCH` | `/v1/projects/{slug}/releases/{release}` | Set the release's target date (`null` falls back to Jira's release date). |
 | `POST` | `/v1/projects/{slug}/releases/{release}/syncs` | Queue a sync. `202` with `Location: /v1/jobs/{id}`; `409` if one is already queued or running. |
 | `GET` | `/v1/jobs/{id}` | Job status, attempts, progress and last error. |
 | `GET` | `/v1/projects/{slug}/releases/{release}/drift` | Drift metrics over a period. |
@@ -62,7 +98,8 @@ for one 120-day sync of `apache/kafka`; a token with no scopes raises it to 5,00
 | `GET` | `/healthz`, `/readyz` | Liveness, and readiness (checks the database). |
 
 Insight endpoints accept `from` and `to` (inclusive UTC dates; default: the last 56 days ending
-today, max 366 days) and `target_date` (defaults to the release date in Jira). They return `ETag`
+today, max 366 days) and `target_date` (defaults to the saved target, then the release date in
+Jira). They return `ETag`
 and honour `If-None-Match` with `304`. Every error is `application/problem+json` (RFC 9457) and
 carries the request's `X-Request-ID`.
 
@@ -80,7 +117,9 @@ its current state, so a past period gives the same answer it would have given at
 | `throughput` | Tickets resolved per week. Unusual weeks are flagged with a modified z-score (median and MAD; at least 6 weeks; threshold 3.5). | Separates real problems from normal week-to-week noise. |
 | `forecast` | Monte Carlo: 2,000 simulations that replay the observed weekly throughput to estimate P50/P85 finish dates and the probability of meeting `target_date`. Seeded, so the same inputs give the same output. | Turns "behind" into "how likely we are to ship on time". |
 | `code` | PRs merged in the period that reference release tickets, PRs that reference no ticket at all (`unlinked_share`), and open tickets whose PR is already merged (status lag). | Cross-checks the tracker against the code. |
-| `coverage` | Whether synced data covers the whole period, with notes when it does not. | Missing data shows up in the response instead of being hidden. |
+| `burnup` | Scope and done counts at the period start and at the end of each week. | The chart behind "is the gap closing?". |
+| `attention` | Open tickets whose PR is merged (oldest merge first), then idle tickets (longest idle first); up to 25. | The concrete list to act on. |
+| `coverage` | Whether synced data covers the whole period (allowing for the 6-hour background sync), with notes when it does not. | Missing data shows up in the response instead of being hidden. |
 
 `status` is `on_track` / `at_risk` / `off_track` from the on-time probability when a target date
 exists (≥70% / ≥40% / below), otherwise from scope churn above 25% and idle share above 30%.
