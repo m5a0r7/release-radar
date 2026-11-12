@@ -33,11 +33,11 @@ export function SyncButton({ slug, release }: { slug: string; release: string })
       <span className="text-xs text-slate-500" aria-live="polite">
         {running && progress?.stage && (
           <>
-            {progress.work_items ?? 0} tickets · {progress.code_changes ?? 0} PRs
+            {count(progress.work_items, 'ticket')} · {count(progress.code_changes, 'PR')}
           </>
         )}
         {job.data?.status === 'succeeded' &&
-          `Synced · ${progress?.work_items ?? 0} tickets, ${progress?.code_changes ?? 0} PRs updated`}
+          `Synced · ${count(progress?.work_items, 'ticket')}, ${count(progress?.code_changes, 'PR')} updated`}
         {job.data?.status === 'failed' && <span className="text-rose-700">Sync failed</span>}
         {start.error && !(start.error instanceof ApiError && start.error.status === 409) && (
           <span className="text-rose-700">Could not start sync</span>
@@ -45,4 +45,9 @@ export function SyncButton({ slug, release }: { slug: string; release: string })
       </span>
     </div>
   )
+}
+
+function count(n: number | undefined, noun: string): string {
+  const value = n ?? 0
+  return `${value} ${noun}${value === 1 ? '' : 's'}`
 }
