@@ -1,6 +1,8 @@
 import asyncio
 import contextlib
 import signal
+import time
+from datetime import timedelta
 from typing import Any
 
 import structlog
@@ -13,9 +15,12 @@ from radar.db.models import Job, Project, Release
 from radar.db.session import create_engine, create_session_factory, transaction
 from radar.ingest.service import SyncService
 from radar.jobs import queue
+from radar.jobs.scheduler import schedule_due_syncs
 from radar.logging import configure_logging
 
 log = structlog.get_logger(__name__)
+
+SCHEDULE_CHECK_SECONDS = 60.0
 
 
 class Worker:
@@ -28,15 +33,34 @@ class Worker:
         self._sessions = sessions
         self._sync = sync_service
         self._settings = settings
+        self._next_schedule_check = 0.0
 
     async def run(self, stop: asyncio.Event) -> None:
         log.info("worker_started")
         while not stop.is_set():
+            await self.schedule_if_due()
             if await self.run_once():
                 continue
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stop.wait(), self._settings.worker_poll_interval_seconds)
         log.info("worker_stopped")
+
+    async def schedule_if_due(self) -> None:
+        if self._settings.auto_sync_hours <= 0 or time.monotonic() < self._next_schedule_check:
+            return
+        self._next_schedule_check = time.monotonic() + SCHEDULE_CHECK_SECONDS
+        try:
+            async with transaction(self._sessions) as session:
+                queued = await schedule_due_syncs(
+                    session,
+                    timedelta(hours=self._settings.auto_sync_hours),
+                    self._settings.job_max_attempts,
+                )
+        except Exception:
+            log.exception("schedule_failed")
+            return
+        if queued:
+            log.info("scheduled_syncs", count=queued)
 
     async def run_once(self) -> bool:
         """Claim and execute one job. Returns False when the queue had nothing due."""
