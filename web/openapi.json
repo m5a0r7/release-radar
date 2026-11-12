@@ -56,6 +56,186 @@
         }
       }
     },
+    "/v1/auth/config": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Auth Config",
+        "description": "Which sign-in methods the server offers.",
+        "operationId": "auth_config_v1_auth_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthConfigOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/github/login": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Github Login",
+        "operationId": "github_login_v1_auth_github_login_get",
+        "parameters": [
+          {
+            "name": "next",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/",
+              "title": "Next"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/github/callback": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Github Callback",
+        "description": "Browsers land here from GitHub, so failures go back to the login page, not to JSON.",
+        "operationId": "github_callback_v1_auth_github_callback_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "default": "",
+              "title": "State"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/demo": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Demo Login",
+        "description": "Sign in as a shared demo user, for trying the app without an OAuth app.",
+        "operationId": "demo_login_v1_auth_demo_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "operationId": "logout_v1_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Me",
+        "operationId": "me_v1_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/projects": {
       "get": {
         "tags": [
@@ -162,6 +342,41 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Delete Project",
+        "description": "Stop tracking a project and delete its synced data.",
+        "operationId": "delete_project_v1_projects__slug__delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/projects/{slug}/releases": {
@@ -232,6 +447,214 @@
                     "$ref": "#/components/schemas/ReleaseOut"
                   },
                   "title": "Response List Releases V1 Projects  Slug  Releases Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/projects/{slug}/releases/{release}": {
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Update Release",
+        "description": "Set the date the team is aiming for, used as the forecast target.",
+        "operationId": "update_release_v1_projects__slug__releases__release__patch",
+        "parameters": [
+          {
+            "name": "release",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "title": "Release"
+            }
+          },
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/connect/tracker": {
+      "post": {
+        "tags": [
+          "connect"
+        ],
+        "summary": "Check Tracker",
+        "description": "Confirm the tracker project exists and list its upcoming releases.",
+        "operationId": "check_tracker_v1_connect_tracker_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackerCheck"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackerCheckOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/connect/code": {
+      "post": {
+        "tags": [
+          "connect"
+        ],
+        "summary": "Check Code",
+        "description": "Sample recent pull requests and report how many reference a ticket of the project.",
+        "operationId": "check_code_v1_connect_code_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeCheck"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeCheckOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/connect/repositories": {
+      "get": {
+        "tags": [
+          "connect"
+        ],
+        "summary": "Search Repositories",
+        "description": "Public repositories matching a name, or `owner/name`.",
+        "operationId": "search_repositories_v1_connect_repositories_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._/-]{2,100}$",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "code_host",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^github$",
+              "default": "github",
+              "title": "Code Host"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RepositoryOut"
+                  },
+                  "title": "Response Search Repositories V1 Connect Repositories Get"
                 }
               }
             }
@@ -587,6 +1010,176 @@
   },
   "components": {
     "schemas": {
+      "AttentionItem": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/AttentionReason"
+          },
+          "days": {
+            "type": "integer",
+            "title": "Days",
+            "description": "Days since the PR merged, or since the last activity."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "reason",
+          "days"
+        ],
+        "title": "AttentionItem"
+      },
+      "AttentionList": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AttentionItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "items"
+        ],
+        "title": "AttentionList"
+      },
+      "AttentionReason": {
+        "type": "string",
+        "enum": [
+          "merged_not_resolved",
+          "idle"
+        ],
+        "title": "AttentionReason"
+      },
+      "AuthConfigOut": {
+        "properties": {
+          "github": {
+            "type": "boolean",
+            "title": "Github"
+          },
+          "demo": {
+            "type": "boolean",
+            "title": "Demo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "github",
+          "demo"
+        ],
+        "title": "AuthConfigOut"
+      },
+      "BurnupPoint": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date",
+            "title": "At",
+            "description": "Values are as of the end of this day (the start: its start)."
+          },
+          "scope": {
+            "type": "integer",
+            "title": "Scope"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "scope",
+          "done"
+        ],
+        "title": "BurnupPoint"
+      },
+      "CodeCheck": {
+        "properties": {
+          "code_host": {
+            "type": "string",
+            "const": "github",
+            "title": "Code Host",
+            "default": "github"
+          },
+          "repository": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$",
+            "title": "Repository"
+          },
+          "tracker_key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,31}$",
+            "title": "Tracker Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "repository",
+          "tracker_key"
+        ],
+        "title": "CodeCheck"
+      },
+      "CodeCheckOut": {
+        "properties": {
+          "repository": {
+            "type": "string",
+            "title": "Repository"
+          },
+          "sampled": {
+            "type": "integer",
+            "title": "Sampled"
+          },
+          "linked": {
+            "type": "integer",
+            "title": "Linked"
+          },
+          "linked_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Share"
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/SampleChange"
+            },
+            "type": "array",
+            "title": "Samples"
+          }
+        },
+        "type": "object",
+        "required": [
+          "repository",
+          "sampled",
+          "linked",
+          "linked_share",
+          "samples"
+        ],
+        "title": "CodeCheckOut"
+      },
       "CodeMetrics": {
         "properties": {
           "available": {
@@ -736,6 +1329,16 @@
           "code": {
             "$ref": "#/components/schemas/CodeMetrics"
           },
+          "burnup": {
+            "items": {
+              "$ref": "#/components/schemas/BurnupPoint"
+            },
+            "type": "array",
+            "title": "Burnup"
+          },
+          "attention": {
+            "$ref": "#/components/schemas/AttentionList"
+          },
           "coverage": {
             "$ref": "#/components/schemas/Coverage"
           }
@@ -753,6 +1356,8 @@
           "throughput",
           "forecast",
           "code",
+          "burnup",
+          "attention",
           "coverage"
         ],
         "title": "DriftReport"
@@ -1085,6 +1690,22 @@
         ],
         "title": "JobOut"
       },
+      "MeOut": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserOut"
+          },
+          "workspace": {
+            "$ref": "#/components/schemas/WorkspaceOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "workspace"
+        ],
+        "title": "MeOut"
+      },
       "NarrativeMeta": {
         "properties": {
           "provider": {
@@ -1413,6 +2034,18 @@
             "examples": [
               "https://issues.apache.org/jira/browse/{key}"
             ]
+          },
+          "search_url_template": {
+            "type": "string",
+            "title": "Search Url Template",
+            "description": "Browser URL listing work items, with `{keys}` as a comma-separated list."
+          },
+          "tracked_releases": {
+            "items": {
+              "$ref": "#/components/schemas/TrackedReleaseOut"
+            },
+            "type": "array",
+            "title": "Tracked Releases"
           }
         },
         "type": "object",
@@ -1423,7 +2056,9 @@
           "code_host",
           "repository",
           "created_at",
-          "item_url_template"
+          "item_url_template",
+          "search_url_template",
+          "tracked_releases"
         ],
         "title": "ProjectOut"
       },
@@ -1491,6 +2126,18 @@
               }
             ],
             "title": "Release Date"
+          },
+          "target_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Date"
           }
         },
         "type": "object",
@@ -1498,7 +2145,8 @@
           "name",
           "released",
           "archived",
-          "release_date"
+          "release_date",
+          "target_date"
         ],
         "title": "ReleaseOut"
       },
@@ -1551,6 +2199,107 @@
           "target_date"
         ],
         "title": "ReleaseSummary"
+      },
+      "ReleaseUpdate": {
+        "properties": {
+          "target_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Date",
+            "description": "Forecast target; null falls back to Jira."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target_date"
+        ],
+        "title": "ReleaseUpdate"
+      },
+      "RepositoryOut": {
+        "properties": {
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "stars": {
+            "type": "integer",
+            "title": "Stars"
+          },
+          "pushed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pushed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "full_name",
+          "description",
+          "language",
+          "stars",
+          "pushed_at"
+        ],
+        "title": "RepositoryOut"
+      },
+      "SampleChange": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "linked": {
+            "type": "boolean",
+            "title": "Linked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "title",
+          "linked"
+        ],
+        "title": "SampleChange"
       },
       "ScopeMetrics": {
         "properties": {
@@ -1637,6 +2386,160 @@
         ],
         "title": "ThroughputMetrics"
       },
+      "TrackedReleaseOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "released": {
+            "type": "boolean",
+            "title": "Released"
+          },
+          "target_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Date"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          },
+          "sync_status": {
+            "type": "string",
+            "title": "Sync Status",
+            "description": "Status of the latest sync job."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "released",
+          "target_date",
+          "last_synced_at",
+          "sync_status"
+        ],
+        "title": "TrackedReleaseOut",
+        "description": "A release that has been synced at least once."
+      },
+      "TrackerCheck": {
+        "properties": {
+          "tracker": {
+            "type": "string",
+            "const": "jira",
+            "title": "Tracker",
+            "default": "jira"
+          },
+          "tracker_key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,31}$",
+            "title": "Tracker Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tracker_key"
+        ],
+        "title": "TrackerCheck"
+      },
+      "TrackerCheckOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "upcoming_releases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Upcoming Releases",
+            "description": "Unreleased, unarchived; newest first."
+          },
+          "already_connected_as": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Already Connected As",
+            "description": "Slug, if this workspace tracks it."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "upcoming_releases",
+          "already_connected_as"
+        ],
+        "title": "TrackerCheckOut"
+      },
+      "UserOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "avatar_url",
+          "provider"
+        ],
+        "title": "UserOut"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -1711,6 +2614,24 @@
           "anomaly"
         ],
         "title": "WeeklyThroughput"
+      },
+      "WorkspaceOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "WorkspaceOut"
       }
     }
   }

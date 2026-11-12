@@ -1,0 +1,75 @@
+import { useQueryClient } from '@tanstack/react-query'
+import { RefreshCw } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+
+import type { TrackedRelease } from '../../api/client'
+import { isActive, useJob, useStartSync } from '../../api/hooks'
+import { count, relativeTime } from '../../lib/format'
+import { Button } from '../ui'
+
+const ACTIVE = new Set(['queued', 'running'])
+
+/** Sync button plus a live status line; follows syncs started elsewhere, such as the wizard. */
+export function SyncControl({
+  slug,
+  release,
+  tracked,
+  initialJobId,
+}: {
+  slug: string
+  release: string
+  tracked: TrackedRelease | undefined
+  initialJobId?: number
+}) {
+  const [jobId, setJobId] = useState(initialJobId)
+  const start = useStartSync()
+  const job = useJob(jobId)
+  const client = useQueryClient()
+  const backgroundSync = tracked !== undefined && ACTIVE.has(tracked.sync_status)
+  const running = start.isPending || isActive(job.data) || backgroundSync
+
+  // A scheduled sync finished: the data behind the dashboard changed.
+  const wasBackground = useRef(backgroundSync)
+  useEffect(() => {
+    if (wasBackground.current && !backgroundSync) {
+      for (const key of ['drift', 'narrative', 'releases']) {
+        client.invalidateQueries({ queryKey: [key] })
+      }
+    }
+    wasBackground.current = backgroundSync
+  }, [backgroundSync, client])
+
+  const progress = job.data?.progress as { work_items?: number; code_changes?: number } | undefined
+
+  let status: string
+  if (start.error) status = 'Could not start sync'
+  else if (job.data?.status === 'failed') status = 'Sync failed'
+  else if (running && progress && isActive(job.data))
+    status = `Syncing · ${count(progress.work_items, 'ticket')}, ${count(progress.code_changes, 'PR')}`
+  else if (running) status = 'Syncing…'
+  else if (tracked?.last_synced_at) status = `Synced ${relativeTime(tracked.last_synced_at)}`
+  else status = 'Never synced'
+
+  return (
+    <>
+      <span
+        className={
+          start.error || job.data?.status === 'failed'
+            ? 'text-xs text-rose-600 dark:text-rose-400'
+            : 'num text-xs text-zinc-400'
+        }
+        aria-live="polite"
+      >
+        {status}
+      </span>
+      <Button
+        variant="secondary"
+        disabled={running}
+        onClick={() => start.mutate({ slug, release }, { onSuccess: (id) => setJobId(id) })}
+      >
+        <RefreshCw className={running ? 'size-3.5 animate-spin' : 'size-3.5'} />
+        Sync
+      </Button>
+    </>
+  )
+}

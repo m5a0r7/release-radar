@@ -1,4 +1,5 @@
 import type { DriftStatus } from '../api/client'
+import type { Tone } from '../components/ui'
 
 export function percent(ratio: number | null | undefined, digits = 0): string {
   return ratio === null || ratio === undefined ? '–' : `${(ratio * 100).toFixed(digits)}%`
@@ -44,19 +45,51 @@ export function itemUrl(template: string, key: string): string {
   return template.replace('{key}', encodeURIComponent(key))
 }
 
-export const STATUS_STYLES: Record<DriftStatus, { label: string; badge: string; ring: string }> = {
-  on_track: {
-    label: 'On track',
-    badge: 'bg-emerald-100 text-emerald-800',
-    ring: 'ring-emerald-200',
-  },
-  at_risk: { label: 'At risk', badge: 'bg-amber-100 text-amber-800', ring: 'ring-amber-200' },
-  off_track: { label: 'Off track', badge: 'bg-rose-100 text-rose-800', ring: 'ring-rose-200' },
+/** A tracker search listing these items, e.g. a Jira JQL `key in (...)` query. */
+export function searchUrl(template: string, keys: string[]): string {
+  return template.replace('{keys}', encodeURIComponent(keys.join(',')))
+}
+
+export const STATUS_STYLES: Record<DriftStatus, { label: string; tone: Tone; dot: string }> = {
+  on_track: { label: 'On track', tone: 'emerald', dot: 'bg-emerald-500' },
+  at_risk: { label: 'At risk', tone: 'amber', dot: 'bg-amber-500' },
+  off_track: { label: 'Off track', tone: 'rose', dot: 'bg-rose-500' },
   insufficient_data: {
     label: 'Not enough data',
-    badge: 'bg-slate-100 text-slate-700',
-    ring: 'ring-slate-200',
+    tone: 'zinc',
+    dot: 'bg-zinc-300 dark:bg-zinc-600',
   },
+}
+
+const STATUS_RANK: DriftStatus[] = ['off_track', 'at_risk', 'on_track', 'insufficient_data']
+
+/** The most worrying of several release statuses. */
+export function worstStatus(statuses: DriftStatus[]): DriftStatus | undefined {
+  return STATUS_RANK.find((status) => statuses.includes(status))
+}
+
+export function relativeTime(iso: string | null | undefined, now = Date.now()): string {
+  if (!iso) return 'never'
+  const minutes = Math.round((now - Date.parse(iso)) / 60_000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} h ago`
+  const days = Math.round(hours / 24)
+  return `${days} d ago`
+}
+
+export function count(n: number | null | undefined, noun: string): string {
+  const value = n ?? 0
+  return `${value} ${noun}${value === 1 ? '' : 's'}`
+}
+
+export const PERIOD_PRESETS = { '4w': 28, '8w': 56, '12w': 84 } as const
+export type PeriodPreset = keyof typeof PERIOD_PRESETS | 'custom'
+
+/** The inclusive date range a preset covers, ending today. */
+export function presetRange(preset: keyof typeof PERIOD_PRESETS, today: string) {
+  return { from: daysBefore(today, PERIOD_PRESETS[preset] - 1), to: today }
 }
 
 /** Which dashboard section an evidence metric (e.g. "scope.added") belongs to. */

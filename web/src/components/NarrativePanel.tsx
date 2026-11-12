@@ -1,7 +1,10 @@
+import { Sparkles } from 'lucide-react'
+
 import type { Evidence, Narrative } from '../api/client'
-import { percent, sectionOf } from '../lib/format'
+import { percent, searchUrl, sectionOf } from '../lib/format'
 import { ItemLinks } from './ItemLinks'
-import { Button, Card, ErrorNotice, Spinner } from './ui'
+import { buttonClass } from './styles'
+import { Button, Card, CardTitle, ErrorNotice, Spinner } from './ui'
 
 type Props = {
   narrative: Narrative | undefined
@@ -11,30 +14,46 @@ type Props = {
   onExplain: () => void
   onEvidence: (section: string) => void
   itemUrlTemplate: string
+  searchUrlTemplate: string
 }
 
 export function NarrativePanel(props: Props) {
   const { narrative, loading, error, requested, onExplain } = props
 
   return (
-    <Card
-      title="Why is this happening?"
-      action={
-        !requested && (
-          <Button onClick={onExplain} variant="primary">
+    <Card id="narrative" className="p-5">
+      <div className="flex items-center justify-between gap-3">
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles className="size-4 text-blue-600 dark:text-blue-500" aria-hidden />
+          Why it is drifting
+        </CardTitle>
+        {narrative && (
+          <span className="text-xs text-zinc-400">
+            {narrative.meta.degraded
+              ? 'template summary'
+              : `${narrative.meta.model} · every number verified`}
+            {narrative.meta.cached && ' · cached'}
+          </span>
+        )}
+      </div>
+      {!requested && !narrative && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
+          <p className="max-w-xl text-sm text-zinc-500">
+            Ask the model to explain these numbers. Every claim cites the evidence it rests on, and
+            confidence is capped by how much data there is.
+          </p>
+          <Button variant="accent" onClick={onExplain}>
+            <Sparkles className="size-4" />
             Explain with AI
           </Button>
-        )
-      }
-    >
-      {!requested && (
-        <p className="text-sm text-slate-500">
-          Ask the model to explain the numbers. Every claim cites the evidence it is based on, and
-          confidence is capped by how much data there is.
-        </p>
+        </div>
       )}
-      {loading && <Spinner label="Analysing the evidence…" />}
-      {error !== null && error !== undefined && <ErrorNotice error={error} />}
+      {loading && <Spinner label="Analysing the evidence…" className="mt-4" />}
+      {error !== null && error !== undefined && (
+        <div className="mt-4">
+          <ErrorNotice error={error} />
+        </div>
+      )}
       {narrative && <NarrativeBody {...props} narrative={narrative} />}
     </Card>
   )
@@ -44,21 +63,26 @@ function NarrativeBody({
   narrative,
   onEvidence,
   itemUrlTemplate,
+  searchUrlTemplate,
 }: Props & { narrative: Narrative }) {
+  const recommendation = narrative.recommendation
   return (
-    <div className="space-y-5">
-      <p className="text-base text-slate-900">{narrative.summary}</p>
+    <div className="mt-4">
+      <p className="text-sm text-zinc-700 dark:text-zinc-300">{narrative.summary}</p>
 
-      <ol className="space-y-4">
+      <ol className="mt-2">
         {narrative.findings.map((finding, index) => (
-          <li key={index} className="rounded-lg bg-slate-50 p-4 ring-1 ring-slate-200">
+          <li
+            key={index}
+            className="border-t border-zinc-100 py-4 first:border-0 dark:border-zinc-800"
+          >
             <div className="flex items-start justify-between gap-4">
-              <p className="text-sm font-medium text-slate-900">{finding.claim}</p>
+              <p className="text-sm font-medium">{finding.claim}</p>
               <Confidence value={finding.confidence} model={finding.model_confidence} />
             </div>
             {finding.hypothesis && (
-              <p className="mt-2 text-sm text-slate-600">
-                <span className="font-medium text-slate-700">Likely cause: </span>
+              <p className="mt-1 text-sm text-zinc-500">
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">Likely cause: </span>
                 {finding.hypothesis}
               </p>
             )}
@@ -67,34 +91,44 @@ function NarrativeBody({
         ))}
       </ol>
 
-      {narrative.recommendation && (
-        <div className="rounded-lg bg-indigo-50 p-4 ring-1 ring-indigo-200">
-          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
-            Suggested fix · needs approval
-          </p>
-          <p className="mt-1 text-sm font-medium text-slate-900">
-            {narrative.recommendation.action}
-          </p>
-          <p className="mt-1 text-sm text-slate-600">{narrative.recommendation.rationale}</p>
-          <ItemLinks keys={narrative.recommendation.item_keys} template={itemUrlTemplate} />
-          <EvidenceChips evidence={narrative.recommendation.evidence} onSelect={onEvidence} />
+      {recommendation && (
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-4 rounded-md bg-zinc-50 p-4 dark:bg-zinc-800/50">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium tracking-wider text-zinc-500 uppercase">
+              Suggested · needs your approval
+            </p>
+            <p className="mt-1 text-sm font-medium">{recommendation.action}</p>
+            <p className="mt-1 text-sm text-zinc-500">{recommendation.rationale}</p>
+            <ItemLinks keys={recommendation.item_keys} template={itemUrlTemplate} />
+            <EvidenceChips evidence={recommendation.evidence} onSelect={onEvidence} />
+          </div>
+          {recommendation.item_keys.length > 0 && (
+            <a
+              href={searchUrl(searchUrlTemplate, recommendation.item_keys)}
+              target="_blank"
+              rel="noreferrer noopener"
+              className={buttonClass('primary')}
+            >
+              Review in Jira
+            </a>
+          )}
         </div>
       )}
 
       {narrative.caveats.length > 0 && (
-        <ul className="list-disc space-y-1 pl-5 text-xs text-slate-500">
+        <ul className="mt-4 list-disc space-y-1 pl-5 text-xs text-zinc-500">
           {narrative.caveats.map((caveat) => (
             <li key={caveat}>{caveat}</li>
           ))}
         </ul>
       )}
 
-      <p className="text-xs text-slate-400">
-        {narrative.meta.degraded
-          ? 'The model was unavailable or failed verification, so this is a template summary.'
-          : `Generated by ${narrative.meta.provider} (${narrative.meta.model}), prompt ${narrative.meta.prompt_version}`}
-        {narrative.meta.cached && ' · cached'}
-      </p>
+      {narrative.meta.degraded && (
+        <p className="mt-3 text-xs text-zinc-400">
+          The model was unavailable or failed verification, so this is a template summary built only
+          from the evidence.
+        </p>
+      )}
     </div>
   )
 }
@@ -107,17 +141,17 @@ function EvidenceChips({
   onSelect: (section: string) => void
 }) {
   return (
-    <div className="mt-3 flex flex-wrap gap-1.5">
+    <div className="mt-2 flex flex-wrap gap-1.5">
       {evidence.map((item) => (
         <button
           key={item.id}
           type="button"
           onClick={() => onSelect(sectionOf(item.metric))}
-          title={item.description}
-          className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-600 ring-1 ring-slate-300 hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-300"
+          title={`${item.description}: show on the dashboard`}
+          className="rounded border border-zinc-200 px-1.5 py-0.5 text-[11px] text-zinc-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-blue-500/10 dark:hover:text-blue-400"
         >
-          <span className="font-semibold">{item.id}</span> {item.description}:{' '}
-          <span className="font-mono">
+          <span className="font-semibold">{item.id}</span> {item.description}{' '}
+          <span className="num font-mono">
             {String(item.value)}
             {item.unit === '%' ? '%' : ''}
           </span>
@@ -131,14 +165,19 @@ function Confidence({ value, model }: { value: number; model: number }) {
   const capped = value < model
   return (
     <div
-      className="shrink-0 text-right"
+      className="w-24 shrink-0 text-right"
       title={capped ? `Model said ${percent(model)}; capped by the amount of data.` : undefined}
     >
-      <p className="text-xs text-slate-500">Confidence</p>
-      <p className="text-sm font-semibold text-slate-900">
-        {percent(value)}
-        {capped && <span className="ml-1 text-xs font-normal text-slate-400">(capped)</span>}
+      <p className="num text-xs text-zinc-500">
+        {percent(value)} conf.
+        {capped && <span className="ml-1 text-zinc-400">(capped)</span>}
       </p>
+      <div className="mt-1 h-1 rounded-full bg-zinc-100 dark:bg-zinc-800">
+        <div
+          className="h-1 rounded-full bg-zinc-900 dark:bg-zinc-100"
+          style={{ width: `${Math.round(value * 100)}%` }}
+        />
+      </div>
     </div>
   )
 }

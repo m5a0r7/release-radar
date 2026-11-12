@@ -9,6 +9,11 @@ export type DriftReport = components['schemas']['DriftReport']
 export type Narrative = components['schemas']['NarrativeResponse']
 export type Evidence = components['schemas']['Evidence']
 export type DriftStatus = components['schemas']['DriftStatus']
+export type TrackedRelease = components['schemas']['TrackedReleaseOut']
+export type Me = components['schemas']['MeOut']
+export type TrackerCheck = components['schemas']['TrackerCheckOut']
+export type CodeCheck = components['schemas']['CodeCheckOut']
+export type Repository = components['schemas']['RepositoryOut']
 
 export const api = createClient<paths>({ baseUrl: '' })
 

@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { daysBefore, itemUrl, percent, periodProblem, sectionOf, signedPercent } from './format'
+import {
+  daysBefore,
+  itemUrl,
+  percent,
+  periodProblem,
+  presetRange,
+  relativeTime,
+  sectionOf,
+  signedPercent,
+  worstStatus,
+} from './format'
 
 describe('format', () => {
   it('formats ratios and missing values', () => {
@@ -33,5 +43,21 @@ describe('format', () => {
   it('maps evidence metrics to dashboard sections', () => {
     expect(sectionOf('planning.unplanned_share')).toBe('planning')
     expect(sectionOf('throughput.week_2026-03-02')).toBe('throughput')
+  })
+
+  it('summarises a project by its most worrying release', () => {
+    expect(worstStatus(['on_track', 'at_risk', 'insufficient_data'])).toBe('at_risk')
+    expect(worstStatus([])).toBeUndefined()
+  })
+
+  it('describes sync times relative to now', () => {
+    const now = Date.parse('2026-11-12T12:00:00Z')
+    expect(relativeTime('2026-11-12T11:58:00Z', now)).toBe('2 min ago')
+    expect(relativeTime('2026-11-12T09:00:00Z', now)).toBe('3 h ago')
+    expect(relativeTime(null, now)).toBe('never')
+  })
+
+  it('turns period presets into inclusive ranges ending today', () => {
+    expect(presetRange('4w', '2026-11-12')).toEqual({ from: '2026-10-16', to: '2026-11-12' })
   })
 })

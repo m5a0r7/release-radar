@@ -54,10 +54,11 @@ describe('NarrativePanel', () => {
         onExplain={() => {}}
         onEvidence={onEvidence}
         itemUrlTemplate="https://jira.test/browse/{key}"
+        searchUrlTemplate="https://jira.test/issues/?jql=key%20in%20({keys})"
       />,
     )
 
-    expect(screen.getByText('60%')).toBeInTheDocument()
+    expect(screen.getByText(/60% conf/)).toBeInTheDocument()
     expect(screen.getByText('(capped)')).toBeInTheDocument()
     expect(screen.getByText(/Likely cause/)).toBeInTheDocument()
 
@@ -76,6 +77,7 @@ describe('NarrativePanel', () => {
         onExplain={onExplain}
         onEvidence={() => {}}
         itemUrlTemplate=""
+        searchUrlTemplate=""
       />,
     )
 

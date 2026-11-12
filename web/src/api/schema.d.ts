@@ -38,6 +38,117 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Auth Config
+         * @description Which sign-in methods the server offers.
+         */
+        get: operations["auth_config_v1_auth_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/github/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Github Login */
+        get: operations["github_login_v1_auth_github_login_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/github/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Github Callback
+         * @description Browsers land here from GitHub, so failures go back to the login page, not to JSON.
+         */
+        get: operations["github_callback_v1_auth_github_callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/demo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Demo Login
+         * @description Sign in as a shared demo user, for trying the app without an OAuth app.
+         */
+        post: operations["demo_login_v1_auth_demo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logout */
+        post: operations["logout_v1_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Me */
+        get: operations["me_v1_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects": {
         parameters: {
             query?: never;
@@ -70,7 +181,11 @@ export interface paths {
         get: operations["get_project_v1_projects__slug__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Project
+         * @description Stop tracking a project and delete its synced data.
+         */
+        delete: operations["delete_project_v1_projects__slug__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -85,6 +200,86 @@ export interface paths {
         };
         /** List Releases */
         get: operations["list_releases_v1_projects__slug__releases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{slug}/releases/{release}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Release
+         * @description Set the date the team is aiming for, used as the forecast target.
+         */
+        patch: operations["update_release_v1_projects__slug__releases__release__patch"];
+        trace?: never;
+    };
+    "/v1/connect/tracker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Tracker
+         * @description Confirm the tracker project exists and list its upcoming releases.
+         */
+        post: operations["check_tracker_v1_connect_tracker_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/connect/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Code
+         * @description Sample recent pull requests and report how many reference a ticket of the project.
+         */
+        post: operations["check_code_v1_connect_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/connect/repositories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Repositories
+         * @description Public repositories matching a name, or `owner/name`.
+         */
+        get: operations["search_repositories_v1_connect_repositories_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -174,6 +369,77 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AttentionItem */
+        AttentionItem: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            reason: components["schemas"]["AttentionReason"];
+            /**
+             * Days
+             * @description Days since the PR merged, or since the last activity.
+             */
+            days: number;
+        };
+        /** AttentionList */
+        AttentionList: {
+            /** Total */
+            total: number;
+            /** Items */
+            items: components["schemas"]["AttentionItem"][];
+        };
+        /**
+         * AttentionReason
+         * @enum {string}
+         */
+        AttentionReason: "merged_not_resolved" | "idle";
+        /** AuthConfigOut */
+        AuthConfigOut: {
+            /** Github */
+            github: boolean;
+            /** Demo */
+            demo: boolean;
+        };
+        /** BurnupPoint */
+        BurnupPoint: {
+            /**
+             * At
+             * Format: date
+             * @description Values are as of the end of this day (the start: its start).
+             */
+            at: string;
+            /** Scope */
+            scope: number;
+            /** Done */
+            done: number;
+        };
+        /** CodeCheck */
+        CodeCheck: {
+            /**
+             * Code Host
+             * @default github
+             * @constant
+             */
+            code_host: "github";
+            /** Repository */
+            repository: string;
+            /** Tracker Key */
+            tracker_key: string;
+        };
+        /** CodeCheckOut */
+        CodeCheckOut: {
+            /** Repository */
+            repository: string;
+            /** Sampled */
+            sampled: number;
+            /** Linked */
+            linked: number;
+            /** Linked Share */
+            linked_share: number | null;
+            /** Samples */
+            samples: components["schemas"]["SampleChange"][];
+        };
         /** CodeMetrics */
         CodeMetrics: {
             /** Available */
@@ -218,6 +484,9 @@ export interface components {
             throughput: components["schemas"]["ThroughputMetrics"];
             forecast: components["schemas"]["ForecastMetrics"];
             code: components["schemas"]["CodeMetrics"];
+            /** Burnup */
+            burnup: components["schemas"]["BurnupPoint"][];
+            attention: components["schemas"]["AttentionList"];
             coverage: components["schemas"]["Coverage"];
         };
         /**
@@ -324,6 +593,11 @@ export interface components {
             started_at: string | null;
             /** Finished At */
             finished_at: string | null;
+        };
+        /** MeOut */
+        MeOut: {
+            user: components["schemas"]["UserOut"];
+            workspace: components["schemas"]["WorkspaceOut"];
         };
         /** NarrativeMeta */
         NarrativeMeta: {
@@ -466,6 +740,13 @@ export interface components {
              * @example https://issues.apache.org/jira/browse/{key}
              */
             item_url_template: string;
+            /**
+             * Search Url Template
+             * @description Browser URL listing work items, with `{keys}` as a comma-separated list.
+             */
+            search_url_template: string;
+            /** Tracked Releases */
+            tracked_releases: components["schemas"]["TrackedReleaseOut"][];
         };
         /** Recommendation */
         Recommendation: {
@@ -493,6 +774,8 @@ export interface components {
             archived: boolean;
             /** Release Date */
             release_date: string | null;
+            /** Target Date */
+            target_date: string | null;
         };
         /** ReleaseSummary */
         ReleaseSummary: {
@@ -509,6 +792,36 @@ export interface components {
              * @description Query override, else the tracker release date.
              */
             target_date: string | null;
+        };
+        /** ReleaseUpdate */
+        ReleaseUpdate: {
+            /**
+             * Target Date
+             * @description Forecast target; null falls back to Jira.
+             */
+            target_date: string | null;
+        };
+        /** RepositoryOut */
+        RepositoryOut: {
+            /** Full Name */
+            full_name: string;
+            /** Description */
+            description: string | null;
+            /** Language */
+            language: string | null;
+            /** Stars */
+            stars: number;
+            /** Pushed At */
+            pushed_at: string | null;
+        };
+        /** SampleChange */
+        SampleChange: {
+            /** Number */
+            number: number;
+            /** Title */
+            title: string;
+            /** Linked */
+            linked: boolean;
         };
         /** ScopeMetrics */
         ScopeMetrics: {
@@ -536,6 +849,64 @@ export interface components {
             weekly: components["schemas"]["WeeklyThroughput"][];
             /** Mean Per Full Week */
             mean_per_full_week: number | null;
+        };
+        /**
+         * TrackedReleaseOut
+         * @description A release that has been synced at least once.
+         */
+        TrackedReleaseOut: {
+            /** Name */
+            name: string;
+            /** Released */
+            released: boolean;
+            /** Target Date */
+            target_date: string | null;
+            /** Last Synced At */
+            last_synced_at: string | null;
+            /**
+             * Sync Status
+             * @description Status of the latest sync job.
+             */
+            sync_status: string;
+        };
+        /** TrackerCheck */
+        TrackerCheck: {
+            /**
+             * Tracker
+             * @default jira
+             * @constant
+             */
+            tracker: "jira";
+            /** Tracker Key */
+            tracker_key: string;
+        };
+        /** TrackerCheckOut */
+        TrackerCheckOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /**
+             * Upcoming Releases
+             * @description Unreleased, unarchived; newest first.
+             */
+            upcoming_releases: string[];
+            /**
+             * Already Connected As
+             * @description Slug, if this workspace tracks it.
+             */
+            already_connected_as: string | null;
+        };
+        /** UserOut */
+        UserOut: {
+            /** Name */
+            name: string;
+            /** Email */
+            email: string | null;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /** Provider */
+            provider: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -568,6 +939,13 @@ export interface components {
             full_week: boolean;
             /** Anomaly */
             anomaly: boolean;
+        };
+        /** WorkspaceOut */
+        WorkspaceOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
         };
     };
     responses: never;
@@ -618,6 +996,147 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    auth_config_v1_auth_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthConfigOut"];
+                };
+            };
+        };
+    };
+    github_login_v1_auth_github_login_get: {
+        parameters: {
+            query?: {
+                next?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    github_callback_v1_auth_github_callback_get: {
+        parameters: {
+            query?: {
+                code?: string | null;
+                state?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    demo_login_v1_auth_demo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+        };
+    };
+    logout_v1_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_v1_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
                 };
             };
         };
@@ -706,6 +1225,35 @@ export interface operations {
             };
         };
     };
+    delete_project_v1_projects__slug__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_releases_v1_projects__slug__releases_get: {
         parameters: {
             query?: {
@@ -728,6 +1276,140 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReleaseOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_release_v1_projects__slug__releases__release__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                release: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_tracker_v1_connect_tracker_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackerCheck"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackerCheckOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_code_v1_connect_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CodeCheck"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeCheckOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_repositories_v1_connect_repositories_get: {
+        parameters: {
+            query: {
+                q: string;
+                code_host?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryOut"][];
                 };
             };
             /** @description Validation Error */

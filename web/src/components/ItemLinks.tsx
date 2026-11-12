@@ -13,13 +13,13 @@ export function ItemLinks({ keys, template }: { keys: string[]; template: string
             href={itemUrl(template, key)}
             target="_blank"
             rel="noreferrer noopener"
-            className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700 hover:bg-indigo-50 hover:text-indigo-700"
+            className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-zinc-600 hover:border-blue-300 hover:text-blue-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:text-blue-400"
           >
             {key}
           </a>
         </li>
       ))}
-      {hidden > 0 && <li className="text-[11px] text-slate-400">+{hidden} more</li>}
+      {hidden > 0 && <li className="text-[11px] text-zinc-400">+{hidden} more</li>}
     </ul>
   )
 }
