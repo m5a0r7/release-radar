@@ -45,6 +45,7 @@ async def load_drift_inputs(
     items = [
         ItemHistory(
             key=r.key,
+            title=r.title,
             created_at=r.created_at,
             resolved_at=r.resolved_at,
             release_ids=frozenset(r.release_ids),
@@ -88,7 +89,7 @@ async def load_drift_inputs(
             name=release.name,
             released=release.released,
             release_date=release.release_date,
-            target_date=target_date or release.release_date,
+            target_date=target_date or release.target_date or release.release_date,
         ),
         release_external_id=ext,
         items=items,

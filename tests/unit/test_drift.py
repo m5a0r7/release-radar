@@ -75,3 +75,22 @@ def test_empty_release_reports_insufficient_data() -> None:
 
     assert report.status is DriftStatus.INSUFFICIENT_DATA
     assert report.planning.unplanned_share is None
+
+
+def test_burnup_tracks_scope_and_done_week_by_week() -> None:
+    report = compute_drift(scenario())
+
+    points = [(p.at.isoformat(), p.scope, p.done) for p in report.burnup]
+
+    assert points[0] == ("2026-03-02", 6, 1)
+    assert points[-1] == ("2026-03-29", 6, 3)
+    assert len(points) == 1 + len(report.throughput.weekly)
+
+
+def test_attention_lists_merged_but_open_first_then_idle() -> None:
+    report = compute_drift(scenario())
+
+    flagged = [(a.key, a.reason.value, a.days) for a in report.attention.items]
+
+    assert flagged == [("K-G", "merged_not_resolved", 9), ("K-C", "idle", 56)]
+    assert report.attention.total == 2

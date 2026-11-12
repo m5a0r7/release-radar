@@ -4,6 +4,11 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 
+class AttentionReason(StrEnum):
+    MERGED_NOT_RESOLVED = "merged_not_resolved"
+    IDLE = "idle"
+
+
 class DriftStatus(StrEnum):
     ON_TRACK = "on_track"
     AT_RISK = "at_risk"
@@ -94,6 +99,24 @@ class CodeMetrics(BaseModel):
     sample_keys: list[str]
 
 
+class BurnupPoint(BaseModel):
+    at: date = Field(description="Values are as of the end of this day (the start: its start).")
+    scope: int
+    done: int
+
+
+class AttentionItem(BaseModel):
+    key: str
+    title: str
+    reason: AttentionReason
+    days: int = Field(description="Days since the PR merged, or since the last activity.")
+
+
+class AttentionList(BaseModel):
+    total: int
+    items: list[AttentionItem]
+
+
 class Coverage(BaseModel):
     work_items_synced_at: datetime | None
     code_changes_synced_from: datetime | None
@@ -114,4 +137,6 @@ class DriftReport(BaseModel):
     throughput: ThroughputMetrics
     forecast: ForecastMetrics
     code: CodeMetrics
+    burnup: list[BurnupPoint]
+    attention: AttentionList
     coverage: Coverage

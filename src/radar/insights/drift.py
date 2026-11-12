@@ -11,6 +11,10 @@ from datetime import UTC, date, datetime, time, timedelta
 
 from radar.insights.forecast import monte_carlo_completion
 from radar.insights.schemas import (
+    AttentionItem,
+    AttentionList,
+    AttentionReason,
+    BurnupPoint,
     CodeMetrics,
     Coverage,
     DriftReport,
@@ -39,6 +43,7 @@ LATE_TAG_WINDOW = timedelta(hours=24)
 ANOMALY_MIN_WEEKS = 6
 ANOMALY_Z = 3.5
 SAMPLE_KEYS = 10
+ATTENTION_SHOWN = 25
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,10 +99,11 @@ def compute_drift(inputs: DriftInputs) -> DriftReport:
         percent_complete=_pct(len(at_end) - len(open_at_end), len(at_end)),
     )
     planning = _planning(completed, end_at)
-    idle = _idle(open_at_end, inputs.linked_changes, end_at)
+    idle = _idle(open_at_end, _latest_change_by_key(inputs.linked_changes, end_at), end_at)
     throughput = _throughput(completed, inputs.start, inputs.end)
     forecast = _forecast(len(open_at_end), throughput, inputs.end, inputs.release.target_date)
     code = _code(inputs, open_at_end, start_at, end_at)
+    latest_change = _latest_change_by_key(inputs.linked_changes, end_at)
 
     return DriftReport(
         project=inputs.project,
@@ -111,6 +117,8 @@ def compute_drift(inputs: DriftInputs) -> DriftReport:
         throughput=throughput,
         forecast=forecast,
         code=code,
+        burnup=_burnup(items, throughput, start_at, end_at),
+        attention=_attention(open_at_end, inputs.linked_changes, latest_change, end_at),
         coverage=inputs.coverage,
     )
 
@@ -169,25 +177,34 @@ def _planning(completed: list[_Item], end_at: datetime) -> PlanningMetrics:
     )
 
 
-def _idle(
-    open_items: list[_Item], changes: Sequence[ChangeHistory], end_at: datetime
-) -> IdleMetrics:
-    latest_change: dict[str, datetime] = {}
+def _latest_change_by_key(
+    changes: Sequence[ChangeHistory], end_at: datetime
+) -> dict[str, datetime]:
+    latest: dict[str, datetime] = {}
     for change in changes:
         if change.updated_at > end_at:
             continue
         for key in change.linked_keys:
-            if key not in latest_change or change.updated_at > latest_change[key]:
-                latest_change[key] = change.updated_at
+            if key not in latest or change.updated_at > latest[key]:
+                latest[key] = change.updated_at
+    return latest
 
+
+def _last_touched(item: _Item, latest_change: dict[str, datetime], end_at: datetime) -> datetime:
+    """Latest ticket activity or linked-PR activity, whichever is later."""
+    return max(
+        last_activity(item.history, end_at),
+        latest_change.get(item.history.key, item.history.created_at),
+    )
+
+
+def _idle(
+    open_items: list[_Item], latest_change: dict[str, datetime], end_at: datetime
+) -> IdleMetrics:
     idle = sorted(
         item.history.key
         for item in open_items
-        if max(
-            last_activity(item.history, end_at),
-            latest_change.get(item.history.key, item.history.created_at),
-        )
-        < end_at - IDLE_THRESHOLD
+        if _last_touched(item, latest_change, end_at) < end_at - IDLE_THRESHOLD
     )
     return IdleMetrics(
         threshold_days=IDLE_THRESHOLD.days,
@@ -289,6 +306,60 @@ def _code(
         open_items_with_merged_change=len(code_done),
         sample_keys=code_done[:SAMPLE_KEYS],
     )
+
+
+def _burnup(
+    items: list[_Item], throughput: ThroughputMetrics, start_at: datetime, end_at: datetime
+) -> list[BurnupPoint]:
+    """Scope and done counts at the period start and at the end of each week."""
+    points = [(start_at.date(), start_at)]
+    points += [
+        (week.end, min(_midnight(week.end + timedelta(days=1)), end_at))
+        for week in throughput.weekly
+    ]
+    result = []
+    for day, moment in points:
+        members = [i for i in items if is_member(i.intervals, moment)]
+        done = sum(
+            1
+            for i in members
+            if resolved_as_of(i.history, moment - timedelta(microseconds=1)) is not None
+        )
+        result.append(BurnupPoint(at=day, scope=len(members), done=done))
+    return result
+
+
+def _attention(
+    open_items: list[_Item],
+    changes: Sequence[ChangeHistory],
+    latest_change: dict[str, datetime],
+    end_at: datetime,
+) -> AttentionList:
+    """Open tickets someone should look at: done in code but open, or gone quiet."""
+    merged: dict[str, datetime] = {}
+    for change in changes:
+        if change.merged_at is None or change.merged_at >= end_at:
+            continue
+        for key in change.linked_keys:
+            if key not in merged or change.merged_at > merged[key]:
+                merged[key] = change.merged_at
+
+    flagged: list[AttentionItem] = []
+    for item in open_items:
+        key = item.history.key
+        if key in merged:
+            reason, since = AttentionReason.MERGED_NOT_RESOLVED, merged[key]
+        elif (touched := _last_touched(item, latest_change, end_at)) < end_at - IDLE_THRESHOLD:
+            reason, since = AttentionReason.IDLE, touched
+        else:
+            continue
+        flagged.append(
+            AttentionItem(
+                key=key, title=item.history.title, reason=reason, days=(end_at - since).days
+            )
+        )
+    flagged.sort(key=lambda a: (a.reason != AttentionReason.MERGED_NOT_RESOLVED, -a.days, a.key))
+    return AttentionList(total=len(flagged), items=flagged[:ATTENTION_SHOWN])
 
 
 def _status(

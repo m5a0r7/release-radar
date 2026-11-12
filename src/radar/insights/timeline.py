@@ -25,6 +25,7 @@ class ItemHistory:
     resolved_at: datetime | None
     release_ids: frozenset[str]
     events: tuple[Event, ...] = field(default=())
+    title: str = ""
 
 
 @dataclass(frozen=True, slots=True)
