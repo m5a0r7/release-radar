@@ -19,6 +19,7 @@ async def load_drift_inputs(
     start: date,
     end: date,
     target_date: date | None,
+    stale_after: timedelta = timedelta(hours=1),
 ) -> DriftInputs:
     ext = release.external_id
     ever_in_release = select(WorkItemEvent.work_item_id).where(
@@ -99,7 +100,7 @@ async def load_drift_inputs(
         code_available=project.code_host is not None,
         project_merged_in_period=merged_total,
         project_unlinked_merged_in_period=merged_unlinked,
-        coverage=await _coverage(session, project, release, start_at, end_at),
+        coverage=await _coverage(session, project, release, start_at, end_at, stale_after),
         start=start,
         end=end,
     )
@@ -111,6 +112,7 @@ async def _coverage(
     release: Release,
     start_at: datetime,
     end_at: datetime,
+    stale_after: timedelta,
 ) -> Coverage:
     streams = [release_stream(project.tracker, release.external_id)]
     if project.code_host:
@@ -125,8 +127,8 @@ async def _coverage(
     }
     work = cursors.get(streams[0])
     code = cursors.get(streams[1]) if len(streams) > 1 else None
-    # A period ending today can only be covered up to "now"; allow a small sync lag.
-    end_at = min(end_at, datetime.now(UTC)) - timedelta(hours=1)
+    # A period ending today can only be covered up to "now", less the expected sync lag.
+    end_at = min(end_at, datetime.now(UTC)) - stale_after
 
     notes: list[str] = []
     if work is None:

@@ -1,4 +1,5 @@
 import hashlib
+from datetime import timedelta
 
 import anyio
 from fastapi import APIRouter, Request, Response
@@ -18,10 +19,16 @@ CACHE_CONTROL = "private, no-cache"
 
 
 async def _report(
-    session: SessionDep, project: Project, release: Release, period: PeriodDep
+    session: SessionDep,
+    container: ContainerDep,
+    project: Project,
+    release: Release,
+    period: PeriodDep,
 ) -> DriftReport:
+    # Data refreshed by the background schedule counts as current, plus slack for the sync itself.
+    stale_after = timedelta(hours=container.settings.auto_sync_hours + 1)
     inputs = await load_drift_inputs(
-        session, project, release, period.start, period.end, period.target_date
+        session, project, release, period.start, period.end, period.target_date, stale_after
     )
     # The Monte Carlo forecast is CPU-bound; keep it off the event loop.
     return await anyio.to_thread.run_sync(compute_drift, inputs)
@@ -43,9 +50,10 @@ async def get_drift(
     release: ReleaseDep,
     period: PeriodDep,
     session: SessionDep,
+    container: ContainerDep,
 ) -> Response:
     """Plan-vs-actual metrics for a release over a period, computed from synced data."""
-    report = await _report(session, project, release, period)
+    report = await _report(session, container, project, release, period)
     return _conditional(request, report)
 
 
@@ -60,6 +68,6 @@ async def get_narrative(
     refresh: bool = False,
 ) -> Response:
     """LLM explanation of the drift: findings, hypotheses, calibrated confidence and evidence."""
-    report = await _report(session, project, release, period)
+    report = await _report(session, container, project, release, period)
     narrative = await container.narratives.narrate(session, report, refresh=refresh)
     return _conditional(request, narrative)
