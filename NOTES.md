@@ -3,20 +3,20 @@
 ## How to run it
 
 See the [README quickstart](README.md#60-second-quickstart): `cp .env.example .env`,
-`docker compose up --build -d`, then the `curl` commands. Optional env vars: `GITHUB_TOKEN`
+`docker compose up --build -d`, then open <http://localhost:8080> or use the `curl` commands. Optional env vars: `GITHUB_TOKEN`
 (no scopes needed), `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`.
 
 ## Architecture
 
 ```
-          ┌──────── api (FastAPI) ────────┐            ┌──── worker ────┐
-client ──►│ /projects /syncs /drift       │── jobs ──► │ claim (SKIP    │──► Jira REST
-          │ /narrative                    │  (Postgres)│ LOCKED), sync  │──► GitHub REST
-          └──────┬───────────────▲────────┘            └───────┬────────┘
-                 │ read          │ evidence → Claude           │ upsert pages
-                 ▼               │ → verify → calibrate        ▼
-              Postgres: projects, releases, work_items, work_item_events,
-                        code_changes, sync_cursors, jobs, narratives
+ web (nginx) ┌──────── api (FastAPI) ────────┐            ┌──── worker ────┐
+ React UI ──►│ /projects /syncs /drift       │── jobs ──► │ claim (SKIP    │──► Jira REST
+             │ /narrative                    │  (Postgres)│ LOCKED), sync  │──► GitHub REST
+             └──────┬───────────────▲────────┘            └───────┬────────┘
+                    │ read          │ evidence → Claude           │ upsert pages
+                    ▼               │ → verify → calibrate        ▼
+                 Postgres: projects, releases, work_items, work_item_events,
+                           code_changes, sync_cursors, jobs, narratives
 ```
 
 Reads never call upstream APIs. A `POST .../syncs` writes a job row; a separate worker process
@@ -43,6 +43,11 @@ The narrative pipeline treats the LLM as an explainer, not a calculator:
    evidence and the response is marked `degraded`. Only good LLM results are cached, keyed on a
    hash of the evidence, prompt version and model.
 
+The dashboard (`web/`) is a static React app. Nginx serves it and proxies `/v1` to the API, so
+the browser talks to one origin and the API needs no CORS. Its TypeScript types are generated
+from the API's OpenAPI schema, so a backend change that breaks the UI fails type-checking in CI.
+Evidence chips in the narrative link back to the dashboard tile that shows the same number.
+
 ## Main decisions and trade-offs
 
 - **Jira + GitHub, public Apache data.** This matches what Loop does (planning data plus delivery
@@ -63,6 +68,11 @@ The narrative pipeline treats the LLM as an explainer, not a calculator:
 - **Metric limits.** "Unplanned" is a heuristic (added within 24h of resolution). Throughput is
   counted in tickets, not effort, because Kafka tickets carry no estimates. The forecast assumes
   future weeks look like the observed ones.
+
+- **Vite + React instead of Next.js.** The dashboard has no SEO needs and the API already
+  exists, so a static app behind Nginx is enough; Next.js would add a Node server for no gain.
+- **Devcontainer is optional.** It gives a one-click setup with Postgres and the test database,
+  but everything also runs with uv, pnpm and `docker compose up -d db` on the host.
 
 ## What I'd do next with another day
 
