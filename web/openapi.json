@@ -1,0 +1,1717 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Release Radar",
+    "summary": "Detects release drift across Jira and GitHub and explains it with an LLM.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Liveness",
+        "operationId": "liveness_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Liveness Healthz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Readiness",
+        "operationId": "readiness_readyz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Readiness Readyz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/projects": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Projects",
+        "operationId": "list_projects_v1_projects_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Projects V1 Projects Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Create Project",
+        "description": "Track a project. Its releases are fetched immediately, which also validates the key.",
+        "operationId": "create_project_v1_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/projects/{slug}": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Get Project",
+        "operationId": "get_project_v1_projects__slug__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/projects/{slug}/releases": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Releases",
+        "operationId": "list_releases_v1_projects__slug__releases_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "released",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Released"
+            }
+          },
+          {
+            "name": "include_archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Archived"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReleaseOut"
+                  },
+                  "title": "Response List Releases V1 Projects  Slug  Releases Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/projects/{slug}/releases/{release}/syncs": {
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "Start Sync",
+        "description": "Queue a background sync of the release's work items and the project's code changes.",
+        "operationId": "start_sync_v1_projects__slug__releases__release__syncs_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "release",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "title": "Release"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A sync for this release is already queued or running."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "Get Job",
+        "operationId": "get_job_v1_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/projects/{slug}/releases/{release}/drift": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Get Drift",
+        "description": "Plan-vs-actual metrics for a release over a period, computed from synced data.",
+        "operationId": "get_drift_v1_projects__slug__releases__release__drift_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "release",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "title": "Release"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive start date (UTC).",
+              "title": "From"
+            },
+            "description": "Inclusive start date (UTC)."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive end date (UTC).",
+              "title": "To"
+            },
+            "description": "Inclusive end date (UTC)."
+          },
+          {
+            "name": "target_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Overrides the tracker's release date.",
+              "title": "Target Date"
+            },
+            "description": "Overrides the tracker's release date."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriftReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/projects/{slug}/releases/{release}/narrative": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Get Narrative",
+        "description": "LLM explanation of the drift: findings, hypotheses, calibrated confidence and evidence.",
+        "operationId": "get_narrative_v1_projects__slug__releases__release__narrative_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "release",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "title": "Release"
+            }
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Refresh"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive start date (UTC).",
+              "title": "From"
+            },
+            "description": "Inclusive start date (UTC)."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive end date (UTC).",
+              "title": "To"
+            },
+            "description": "Inclusive end date (UTC)."
+          },
+          {
+            "name": "target_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Overrides the tracker's release date.",
+              "title": "Target Date"
+            },
+            "description": "Overrides the tracker's release date."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrativeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CodeMetrics": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "linked_merged_in_period": {
+            "type": "integer",
+            "title": "Linked Merged In Period"
+          },
+          "project_merged_in_period": {
+            "type": "integer",
+            "title": "Project Merged In Period"
+          },
+          "unlinked_merged_in_period": {
+            "type": "integer",
+            "title": "Unlinked Merged In Period"
+          },
+          "unlinked_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlinked Share"
+          },
+          "open_items_with_merged_change": {
+            "type": "integer",
+            "title": "Open Items With Merged Change"
+          },
+          "sample_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sample Keys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "linked_merged_in_period",
+          "project_merged_in_period",
+          "unlinked_merged_in_period",
+          "unlinked_share",
+          "open_items_with_merged_change",
+          "sample_keys"
+        ],
+        "title": "CodeMetrics"
+      },
+      "Coverage": {
+        "properties": {
+          "work_items_synced_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Items Synced At"
+          },
+          "code_changes_synced_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Changes Synced From"
+          },
+          "code_changes_synced_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Changes Synced At"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "work_items_synced_at",
+          "code_changes_synced_from",
+          "code_changes_synced_at",
+          "complete",
+          "notes"
+        ],
+        "title": "Coverage"
+      },
+      "DriftReport": {
+        "properties": {
+          "project": {
+            "type": "string",
+            "title": "Project"
+          },
+          "release": {
+            "$ref": "#/components/schemas/ReleaseSummary"
+          },
+          "period": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DriftStatus"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ScopeMetrics"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/ProgressMetrics"
+          },
+          "planning": {
+            "$ref": "#/components/schemas/PlanningMetrics"
+          },
+          "idle": {
+            "$ref": "#/components/schemas/IdleMetrics"
+          },
+          "throughput": {
+            "$ref": "#/components/schemas/ThroughputMetrics"
+          },
+          "forecast": {
+            "$ref": "#/components/schemas/ForecastMetrics"
+          },
+          "code": {
+            "$ref": "#/components/schemas/CodeMetrics"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/Coverage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project",
+          "release",
+          "period",
+          "status",
+          "scope",
+          "progress",
+          "planning",
+          "idle",
+          "throughput",
+          "forecast",
+          "code",
+          "coverage"
+        ],
+        "title": "DriftReport"
+      },
+      "DriftStatus": {
+        "type": "string",
+        "enum": [
+          "on_track",
+          "at_risk",
+          "off_track",
+          "insufficient_data"
+        ],
+        "title": "DriftStatus"
+      },
+      "Evidence": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keys",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "metric",
+          "value",
+          "unit",
+          "description"
+        ],
+        "title": "Evidence"
+      },
+      "Finding": {
+        "properties": {
+          "claim": {
+            "type": "string",
+            "title": "Claim"
+          },
+          "hypothesis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hypothesis"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "description": "Calibrated: min(model confidence, data-support cap)."
+          },
+          "model_confidence": {
+            "type": "number",
+            "title": "Model Confidence"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim",
+          "hypothesis",
+          "confidence",
+          "model_confidence",
+          "evidence"
+        ],
+        "title": "Finding"
+      },
+      "ForecastMetrics": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "default": "monte_carlo_bootstrap"
+          },
+          "remaining": {
+            "type": "integer",
+            "title": "Remaining"
+          },
+          "p50_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 Date"
+          },
+          "p85_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P85 Date"
+          },
+          "target_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Date"
+          },
+          "on_time_probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Time Probability"
+          },
+          "slip_days_p50": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slip Days P50"
+          }
+        },
+        "type": "object",
+        "required": [
+          "remaining",
+          "p50_date",
+          "p85_date",
+          "target_date",
+          "on_time_probability",
+          "slip_days_p50"
+        ],
+        "title": "ForecastMetrics"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "IdleMetrics": {
+        "properties": {
+          "threshold_days": {
+            "type": "integer",
+            "title": "Threshold Days"
+          },
+          "open_items": {
+            "type": "integer",
+            "title": "Open Items"
+          },
+          "idle_items": {
+            "type": "integer",
+            "title": "Idle Items"
+          },
+          "idle_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idle Share"
+          },
+          "idle_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Idle Keys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "threshold_days",
+          "open_items",
+          "idle_items",
+          "idle_share",
+          "idle_keys"
+        ],
+        "title": "IdleMetrics"
+      },
+      "JobOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "max_attempts": {
+            "type": "integer",
+            "title": "Max Attempts"
+          },
+          "progress": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Progress"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "attempts",
+          "max_attempts",
+          "progress",
+          "last_error",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "JobOut"
+      },
+      "NarrativeMeta": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "cached": {
+            "type": "boolean",
+            "title": "Cached"
+          },
+          "degraded": {
+            "type": "boolean",
+            "title": "Degraded",
+            "description": "True when the LLM failed and a template was used."
+          },
+          "confidence_cap": {
+            "type": "number",
+            "title": "Confidence Cap"
+          },
+          "verification_errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Verification Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "prompt_version",
+          "generated_at",
+          "cached",
+          "degraded",
+          "confidence_cap",
+          "verification_errors"
+        ],
+        "title": "NarrativeMeta"
+      },
+      "NarrativeResponse": {
+        "properties": {
+          "project": {
+            "type": "string",
+            "title": "Project"
+          },
+          "release": {
+            "type": "string",
+            "title": "Release"
+          },
+          "period": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DriftStatus"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            },
+            "type": "array",
+            "title": "Findings"
+          },
+          "recommendation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Recommendation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "caveats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Caveats"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/NarrativeMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project",
+          "release",
+          "period",
+          "status",
+          "summary",
+          "findings",
+          "recommendation",
+          "caveats",
+          "meta"
+        ],
+        "title": "NarrativeResponse"
+      },
+      "Period": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End",
+            "description": "Inclusive."
+          },
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "days"
+        ],
+        "title": "Period"
+      },
+      "PlanningMetrics": {
+        "properties": {
+          "window_hours": {
+            "type": "integer",
+            "title": "Window Hours"
+          },
+          "completed_in_period": {
+            "type": "integer",
+            "title": "Completed In Period"
+          },
+          "tagged_at_resolution": {
+            "type": "integer",
+            "title": "Tagged At Resolution",
+            "description": "Completed items added to the release within `window_hours` of resolution."
+          },
+          "unplanned_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unplanned Share"
+          },
+          "sample_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sample Keys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "window_hours",
+          "completed_in_period",
+          "tagged_at_resolution",
+          "unplanned_share",
+          "sample_keys"
+        ],
+        "title": "PlanningMetrics"
+      },
+      "ProgressMetrics": {
+        "properties": {
+          "completed_in_period": {
+            "type": "integer",
+            "title": "Completed In Period"
+          },
+          "completed_previous_period": {
+            "type": "integer",
+            "title": "Completed Previous Period"
+          },
+          "open_at_end": {
+            "type": "integer",
+            "title": "Open At End"
+          },
+          "done_at_end": {
+            "type": "integer",
+            "title": "Done At End"
+          },
+          "percent_complete": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent Complete"
+          }
+        },
+        "type": "object",
+        "required": [
+          "completed_in_period",
+          "completed_previous_period",
+          "open_at_end",
+          "done_at_end",
+          "percent_complete"
+        ],
+        "title": "ProgressMetrics"
+      },
+      "ProjectCreate": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+            "title": "Slug",
+            "examples": [
+              "kafka"
+            ]
+          },
+          "tracker": {
+            "type": "string",
+            "const": "jira",
+            "title": "Tracker",
+            "default": "jira"
+          },
+          "tracker_key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,31}$",
+            "title": "Tracker Key",
+            "examples": [
+              "KAFKA"
+            ]
+          },
+          "code_host": {
+            "type": "string",
+            "const": "github",
+            "title": "Code Host",
+            "default": "github"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository",
+            "description": "Code repository to link PRs from; omit for a tracker-only project.",
+            "examples": [
+              "apache/kafka"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "slug",
+          "tracker_key"
+        ],
+        "title": "ProjectCreate"
+      },
+      "ProjectOut": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "tracker": {
+            "type": "string",
+            "title": "Tracker"
+          },
+          "tracker_key": {
+            "type": "string",
+            "title": "Tracker Key"
+          },
+          "code_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Host"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "item_url_template": {
+            "type": "string",
+            "title": "Item Url Template",
+            "description": "Browser URL of a work item, with `{key}` as the placeholder.",
+            "examples": [
+              "https://issues.apache.org/jira/browse/{key}"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "tracker",
+          "tracker_key",
+          "code_host",
+          "repository",
+          "created_at",
+          "item_url_template"
+        ],
+        "title": "ProjectOut"
+      },
+      "Recommendation": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "item_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Item Keys"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "requires_approval": {
+            "type": "boolean",
+            "title": "Requires Approval",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "rationale",
+          "item_keys",
+          "evidence"
+        ],
+        "title": "Recommendation"
+      },
+      "ReleaseOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "released": {
+            "type": "boolean",
+            "title": "Released"
+          },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived"
+          },
+          "release_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "released",
+          "archived",
+          "release_date"
+        ],
+        "title": "ReleaseOut"
+      },
+      "ReleaseSummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "released": {
+            "type": "boolean",
+            "title": "Released"
+          },
+          "release_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release Date"
+          },
+          "target_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Date",
+            "description": "Query override, else the tracker release date."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "released",
+          "release_date",
+          "target_date"
+        ],
+        "title": "ReleaseSummary"
+      },
+      "ScopeMetrics": {
+        "properties": {
+          "at_start": {
+            "type": "integer",
+            "title": "At Start"
+          },
+          "at_end": {
+            "type": "integer",
+            "title": "At End"
+          },
+          "added": {
+            "type": "integer",
+            "title": "Added"
+          },
+          "removed": {
+            "type": "integer",
+            "title": "Removed"
+          },
+          "change_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Pct",
+            "description": "Net scope change relative to the start, in %."
+          },
+          "added_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Added Keys"
+          },
+          "removed_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Removed Keys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at_start",
+          "at_end",
+          "added",
+          "removed",
+          "change_pct",
+          "added_keys",
+          "removed_keys"
+        ],
+        "title": "ScopeMetrics"
+      },
+      "ThroughputMetrics": {
+        "properties": {
+          "weekly": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyThroughput"
+            },
+            "type": "array",
+            "title": "Weekly"
+          },
+          "mean_per_full_week": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Per Full Week"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weekly",
+          "mean_per_full_week"
+        ],
+        "title": "ThroughputMetrics"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WeeklyThroughput": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "completed": {
+            "type": "integer",
+            "title": "Completed"
+          },
+          "full_week": {
+            "type": "boolean",
+            "title": "Full Week"
+          },
+          "anomaly": {
+            "type": "boolean",
+            "title": "Anomaly"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "completed",
+          "full_week",
+          "anomaly"
+        ],
+        "title": "WeeklyThroughput"
+      }
+    }
+  }
+}

@@ -31,4 +31,28 @@ jobs:
       - run: uv sync --locked
       - run: make lint
       - run: make test
+      - name: OpenAPI schema is committed and current
+        run: uv run python scripts/export_openapi.py web/openapi.json && git diff --exit-code web/openapi.json
       - run: docker build -t release-radar:ci .
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Generated API types match the schema
+        run: pnpm gen:api && git diff --exit-code src/api/schema.d.ts
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+      - run: docker build -t release-radar-web:ci .
