@@ -1,6 +1,8 @@
+# api, worker and migrate share one image. Only migrate builds it: parallel builds of the same
+# tag fail with "image already exists".
 x-app: &app
-  build: .
   image: release-radar:local
+  pull_policy: never
   env_file:
     - path: .env
       required: false
@@ -27,6 +29,7 @@ services:
 
   migrate:
     <<: *app
+    build: .
     command: ["alembic", "upgrade", "head"]
     restart: "no"
     healthcheck:
