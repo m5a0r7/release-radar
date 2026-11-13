@@ -34,6 +34,10 @@ Run both checks before you finish. Postgres for tests: `docker compose up -d db`
   in the API schema, and a tile in the dashboard. Bump `PROMPT_VERSION` (`narrative/prompt.py`) if the prompt changes.
 - Metrics are computed as of the period boundaries from change history, never from current state.
 - Reads never call upstream APIs; only the worker and the `/v1/connect` checks do.
+- Anything that scales with upstream size or traffic needs a limit in `config.py` (see the README's
+  Limits table): LLM calls go through `NarrativeService`, which applies the prompt budget,
+  concurrency cap and workspace quota.
+- Tracker-specific code stays in its connector; the UI names the tracker with `lib/tracker.ts`.
 - Every project query is scoped to the caller's workspace (`PrincipalDep`, `get_project`). A new
   route that takes a slug must go through `ProjectDep`; tests sign in via the `client` fixture.
 - UI: zinc neutrals, one blue accent, flat 1px-bordered cards, `dark:` variants on everything.

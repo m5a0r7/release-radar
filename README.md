@@ -1,14 +1,14 @@
 # Release Radar
 
 Release Radar checks whether a software release is drifting from its plan. It reads tickets from
-Jira and pull requests from GitHub, rebuilds what the release looked like on any date, and reports
+Jira or GitHub Issues and pull requests from GitHub, rebuilds what the release looked like on any date, and reports
 scope change, unplanned work, idle tickets, code/ticket status lag and a forecast finish date.
 A second endpoint asks an LLM (Claude) to explain the numbers: findings, a root-cause hypothesis,
 a calibrated confidence score, and an evidence chain that points back to each number.
 
 A web app (React, TypeScript, Tailwind) adds accounts and workspaces (sign in with GitHub), a
-wizard that connects a Jira project and checks that its GitHub pull requests actually reference its
-tickets, and a dashboard per release: a one-line verdict ("37% chance 4.5.0 ships by Dec 15"),
+wizard that connects a Jira project (or a repository's GitHub Issues) and checks that its pull
+requests actually reference its tickets, and a dashboard per release: a one-line verdict ("37% chance 4.5.0 ships by Dec 15"),
 KPI tiles, a burn-up chart with the forecast and target, a "needs attention" list, and the
 explanation, where every piece of evidence links back to the metric it came from. Tracked
 releases re-sync in the background every 6 hours. Light and dark themes.
@@ -27,7 +27,9 @@ docker compose up --build -d    # postgres, migrations, api, worker, web
 
 Open <http://localhost:8080>, choose **Try the demo account**, then **Connect project**: Jira key
 `KAFKA`, repository `apache/kafka`, release `4.5.0`, target date of your choice. The first sync
-takes about 30 seconds; then press **Explain**. The same flow over the API:
+takes about 30 seconds; then press **Explain**. For GitHub Issues, pick **GitHub Issues** in the
+first step and enter a repository such as `apache/arrow`: milestones become releases, and pull
+requests link to issues through `#123` references in their title or description. The same flow over the API:
 
 ```bash
 # 0. Sign in (the demo account; the session is an httpOnly cookie)
@@ -83,10 +85,10 @@ scoped to the caller's workspace (another workspace's project is a `404`).
 | `GET` | `/v1/auth/github/login`, `/v1/auth/github/callback` | GitHub OAuth (state cookie, same-app `?next=` only). |
 | `POST` | `/v1/auth/demo`, `/v1/auth/logout` | Demo sign-in (development only); sign out. |
 | `GET` | `/v1/me` | The signed-in user and workspace. |
-| `POST` | `/v1/connect/tracker` | Check a Jira key: project name, upcoming releases, whether it is already connected. |
-| `POST` | `/v1/connect/code` | Sample a repository's last 100 PRs and report how many reference the Jira key. |
+| `POST` | `/v1/connect/tracker` | Check a tracker project (`tracker`: `jira` with a key like `KAFKA`, or `github` with `owner/name`): name, upcoming releases, whether it is already connected. |
+| `POST` | `/v1/connect/code` | Sample a repository's last 100 PRs and report how many reference the tracker's tickets. |
 | `GET` | `/v1/connect/repositories?q=` | Search public GitHub repositories (`owner/name` searches one owner). |
-| `POST` | `/v1/projects` | Track a Jira project, optionally linked to a GitHub repository. `201`, `409` if the workspace already has that name or key, `422` if Jira does not know the key. |
+| `POST` | `/v1/projects` | Track a Jira project or GitHub Issues repository, optionally linked to a GitHub code repository. `201`, `409` if the workspace already has that name or key, `422` if the tracker does not know the key. |
 | `GET` | `/v1/projects`, `/v1/projects/{slug}` | List or read projects, with each tracked release's last sync. |
 | `DELETE` | `/v1/projects/{slug}` | Remove a project and its synced data. |
 | `GET` | `/v1/projects/{slug}/releases` | Releases (`?released=false`, `?include_archived=true`, `?limit=`). |
@@ -94,7 +96,7 @@ scoped to the caller's workspace (another workspace's project is a `404`).
 | `POST` | `/v1/projects/{slug}/releases/{release}/syncs` | Queue a sync. `202` with `Location: /v1/jobs/{id}`; `409` if one is already queued or running. |
 | `GET` | `/v1/jobs/{id}` | Job status, attempts, progress and last error. |
 | `GET` | `/v1/projects/{slug}/releases/{release}/drift` | Drift metrics over a period. |
-| `GET` | `/v1/projects/{slug}/releases/{release}/narrative` | LLM narrative over the same period (`?refresh=true` bypasses the cache). |
+| `GET` | `/v1/projects/{slug}/releases/{release}/narrative` | LLM narrative over the same period (`?refresh=true` bypasses the cache). `429` with `Retry-After` when the workspace is over its AI quota. |
 | `GET` | `/healthz`, `/readyz` | Liveness, and readiness (checks the database). |
 
 Insight endpoints accept `from` and `to` (inclusive UTC dates; default: the last 56 days ending
@@ -102,6 +104,22 @@ today, max 366 days) and `target_date` (defaults to the saved target, then the r
 Jira). They return `ETag`
 and honour `If-None-Match` with `304`. Every error is `application/problem+json` (RFC 9457) and
 carries the request's `X-Request-ID`.
+
+## Limits
+
+Each limit is an environment variable (see `.env.example`), so a large release degrades in a
+predictable way instead of failing late.
+
+| Limit | Default | When exceeded |
+|---|---|---|
+| `LLM_MAX_INPUT_TOKENS` | 12,000 | Evidence is trimmed in order (fewer example keys, then only the last 12 weeks plus anomalous weeks, then no keys) and a caveat says so; if it still does not fit, the template narrator answers. |
+| `LLM_MAX_CONCURRENCY` | 4 per API process | Further requests wait up to 30 s, then get the template narrative. |
+| `LLM_REQUESTS_PER_HOUR`, `LLM_TOKENS_PER_DAY` | 30, 1,000,000 per workspace | `429` with `Retry-After`. Every call is logged in `llm_calls` with its token counts. |
+| `SYNC_MAX_WORK_ITEMS` | 20,000 per sync | The job fails with a clear error and is not retried. |
+| Period | 366 days | `422`. |
+
+The prompt does not grow with the number of tickets: evidence is aggregated (counts, rates and at
+most 10 example keys per fact), so only the weekly throughput series grows with the period.
 
 ## What the metrics mean
 

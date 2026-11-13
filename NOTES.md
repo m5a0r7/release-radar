@@ -17,7 +17,7 @@ See the [README quickstart](README.md#60-second-quickstart): `cp .env.example .e
                     ▼               │ → verify → calibrate        ▼ upsert pages
                  Postgres: users, identities, workspaces, memberships, sessions,
                            projects, releases, work_items, work_item_events,
-                           code_changes, sync_cursors, jobs, narratives
+                           code_changes, sync_cursors, jobs, narratives, llm_calls
 ```
 
 Reads never call upstream APIs. A `POST .../syncs` writes a job row; a separate worker process
@@ -29,6 +29,13 @@ them idempotent. Tickets are stored with their append-only change history, which
 `insights/drift.py` are pure functions over that history, so they are unit-tested without a
 database. Connectors implement two small protocols (`WorkTracker`, `CodeHost`), so adding Linear
 or Azure DevOps is one new class.
+
+GitHub Issues is a second `WorkTracker`: milestones are releases, issues in a milestone are its
+scope, and the issue event log (`milestoned`, `demilestoned`, `closed`, `reopened`, `assigned`)
+maps onto the same normalized history as Jira's changelog, so the metrics have no
+tracker-specific code. Issues moved out of a milestone no longer appear under it, so the sync also
+scans the repository's recent `demilestoned` events to count removals. PRs link to issues by `#123`
+in the title or description; for Jira only the title is used, as before.
 
 The narrative pipeline treats the LLM as an explainer, not a calculator:
 
@@ -70,6 +77,15 @@ repository's PRs mention its tickets at all.
 - **The LLM never sees ticket titles or descriptions.** It sees only computed evidence and ticket
   keys, which keeps the prompt-injection surface small. The cost is that it cannot explain *what*
   the work was about.
+- **Bounded LLM cost.** The prompt is aggregated evidence, so its size does not grow with ticket
+  count. A token budget trims it further for very long periods, a per-process semaphore caps
+  concurrent calls, and a per-workspace ledger (`llm_calls`) enforces hourly request and daily
+  token quotas. The quota check reserves a row under a per-workspace advisory lock, so two
+  concurrent requests cannot both spend the last unit. The ledger uses its own short transactions
+  so it never holds the request's transaction open across the LLM call.
+- **GitHub Issues costs one request per issue for its history.** The issues list has no event
+  data, so a first sync of a 2,000-issue milestone is about 2,000 requests (40% of an hourly token
+  quota); later syncs only fetch issues updated since the last one. The sync item cap bounds it.
 - **Security.** Upstream base URLs come only from configuration; project keys, release ids and
   repository names are validated against strict patterns before they reach JQL or URLs; GitHub
   pagination links are only followed back to the configured host; tokens are `SecretStr`, blank
@@ -97,9 +113,10 @@ repository's PRs mention its tickets at all.
 - Acting on the suggestion ("move 12 idle tickets to 4.6.0") after the user approves it.
 - An eval suite of synthetic drift scenarios with planted causes, run against the real model
   on prompt changes, to measure hypothesis accuracy and calibration.
-- Rate limiting on the narrative endpoint, which is the expensive one, and Prometheus metrics
-  (request latency, job outcomes, LLM tokens and verifier failure rate).
-- A Linear connector, and Bedrock as an LLM provider (`AsyncAnthropicBedrock` is a drop-in swap).
+- Prometheus metrics (request latency, job outcomes, LLM tokens from `llm_calls` and verifier
+  failure rate), and per-workspace quota overrides for paying customers.
+- GitHub Issues via the GraphQL API (one query per page of issues with their timelines, instead of
+  one request per issue), and a Linear connector, and Bedrock as an LLM provider (`AsyncAnthropicBedrock` is a drop-in swap).
 
 ## How I used AI
 
