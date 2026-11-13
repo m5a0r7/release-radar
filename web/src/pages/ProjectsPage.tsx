@@ -3,7 +3,13 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import type { DriftStatus, Project } from '../api/client'
-import { startSync, useDeleteProject, useProjects, useReleaseStatuses } from '../api/hooks'
+import {
+  startSync,
+  useCancelSync,
+  useDeleteProject,
+  useProjects,
+  useReleaseStatuses,
+} from '../api/hooks'
 import { Crumb, PageHeader } from '../components/AppShell'
 import { buttonClass } from '../components/styles'
 import { Button, Card, ErrorNotice, GitHubIcon, Pill, Spinner } from '../components/ui'
@@ -80,7 +86,10 @@ function ProjectRow({ project }: { project: Project }) {
     releases.map((r) => ({ slug: project.slug, release: r.name })),
   )
   const worst = worstStatus(statuses.flatMap((s) => (s.data ? [s.data as DriftStatus] : [])))
-  const syncing = releases.some((r) => ACTIVE.has(r.sync_status))
+  const active = releases.filter((r) => ACTIVE.has(r.sync_status))
+  const syncing = active.length > 0
+  const waiting = syncing && active.every((r) => /rate limited/i.test(r.sync_error ?? ''))
+  const cancel = useCancelSync()
   const lastSync = releases
     .map((r) => r.last_synced_at)
     .filter((at): at is string => !!at)
@@ -127,7 +136,7 @@ function ProjectRow({ project }: { project: Project }) {
         {syncing ? (
           <span className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
             <RefreshCw className="size-3 animate-spin" aria-hidden />
-            Syncing
+            {waiting ? 'Waiting on GitHub' : 'Syncing'}
           </span>
         ) : worst ? (
           <Pill tone={STATUS_STYLES[worst].tone}>{STATUS_STYLES[worst].label}</Pill>
@@ -144,16 +153,31 @@ function ProjectRow({ project }: { project: Project }) {
       </td>
       <td className="px-4 py-3">
         <div className="flex justify-end gap-1.5">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={syncing || !releases.length}
-            onClick={syncAll}
-            title={releases.length ? 'Sync every tracked release' : 'Open a release to sync it'}
-          >
-            <RefreshCw className="size-3.5" />
-            Sync
-          </Button>
+          {syncing ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={cancel.isPending}
+              onClick={() => {
+                for (const id of active.map((r) => r.sync_job_id)) {
+                  if (typeof id === 'number') cancel.mutate(id)
+                }
+              }}
+            >
+              Stop
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!releases.length}
+              onClick={syncAll}
+              title={releases.length ? 'Sync every tracked release' : 'Open a release to sync it'}
+            >
+              <RefreshCw className="size-3.5" />
+              Sync
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
