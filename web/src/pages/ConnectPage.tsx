@@ -15,7 +15,7 @@ import { Crumb, PageHeader } from '../components/AppShell'
 import { inputClass } from '../components/styles'
 import { Button, Card, ErrorNotice, Field, Input, Spinner } from '../components/ui'
 import { cn } from '../lib/cn'
-import { percent } from '../lib/format'
+import { count, percent } from '../lib/format'
 import { defaultRelease, releasePath } from '../lib/routes'
 import { trackerName, type TrackerKind } from '../lib/tracker'
 
@@ -231,7 +231,10 @@ function TrackerStep({
         <div className="mt-4 space-y-3">
           <Summary label={trackerName(kind)}>
             {github ? result.key : `${result.name} · ${result.key}`} ·{' '}
-            {result.upcoming_releases.length} upcoming {github ? 'milestones' : 'releases'}
+            {count(
+              result.upcoming_releases.length,
+              github ? 'upcoming milestone' : 'upcoming release',
+            )}
           </Summary>
           {result.already_connected_as && (
             <p className="text-sm text-amber-700 dark:text-amber-400">
