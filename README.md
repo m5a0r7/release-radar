@@ -79,7 +79,7 @@ existed land in an "Imported projects" workspace that the first user to sign in 
 `.railway/railway.ts` describes the whole project: Postgres, the API (runs migrations before each deploy), the background worker, and the web app. The web app proxies `/v1` to the API over Railway's private network, so the browser still talks to one origin. The demo account stays open through `DEMO_UNTIL` (2026-12-12 in that file); after that day sign-in closes. Four always-on services will spend the $5 trial credit in roughly a week of light use, so delete the project when the review is over.
 
 1. Sign in at [railway.com](https://railway.com) with GitHub. New accounts get $5 of credit for 30 days, with no card.
-2. Install the [Railway CLI](https://docs.railway.com/guides/cli), then from `release-radar/`:
+2. Install the [Railway CLI](https://docs.railway.com/guides/cli), then from this directory:
 
    ```bash
    railway login
@@ -92,7 +92,7 @@ existed land in an "Imported projects" workspace that the first user to sign in 
 5. On **api** and **worker**, set `GITHUB_TOKEN` (a token with no scopes). Without it GitHub allows 60 requests an hour, which a sync uses up. To turn on live explanations, also set `ANTHROPIC_API_KEY` on **api** and change `LLM_PROVIDER` to `anthropic`.
 6. Open the web URL and choose **Try the demo account**. The login page shows the last day the demo stays open.
 
-The file deploys the branch `cursor/release-radar-skeleton-7546`. After that pull request is merged, change `branch` to `main` and apply again.
+The file deploys the private repo `m5a0r7/release-radar`, branch `main`. Grant the [Railway GitHub App](https://github.com/apps/railway-app/installations/new) access to that repo before `railway config apply`.
 
 ## API
 

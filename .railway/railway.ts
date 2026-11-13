@@ -1,9 +1,8 @@
 import { defineRailway, github, group, postgres, preserve, project, service } from "railway/iac";
 
-// The app lives in this subdirectory of m5a0r7/job-hunt. Point `branch` at `main`
-// once the pull request is merged; until then the working branch is what deploys.
-const repo = "m5a0r7/job-hunt";
-const branch = "cursor/release-radar-skeleton-7546";
+// Standalone private repo. The API builds from the repository root and the web app from web/.
+const repo = "m5a0r7/release-radar";
+const branch = "main";
 
 export default defineRailway(() => {
   const db = postgres("Postgres");
@@ -23,7 +22,7 @@ export default defineRailway(() => {
   };
 
   const api = service("api", {
-    source: github(repo, { branch, rootDirectory: "release-radar" }),
+    source: github(repo, { branch }),
     healthcheck: "/readyz",
     healthcheckTimeout: 120,
     preDeploy: "alembic upgrade head",
@@ -37,13 +36,13 @@ export default defineRailway(() => {
   });
 
   const worker = service("worker", {
-    source: github(repo, { branch, rootDirectory: "release-radar" }),
+    source: github(repo, { branch }),
     start: "python -m radar.jobs.worker",
     env: appEnv,
   });
 
   const web = service("web", {
-    source: github(repo, { branch, rootDirectory: "release-radar/web" }),
+    source: github(repo, { branch, rootDirectory: "web" }),
     healthcheck: "/",
     env: {
       // Railway injects PORT for this service; nginx listens on it.
