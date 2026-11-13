@@ -8,6 +8,8 @@ x-app: &app
       required: false
   environment:
     DATABASE_URL: postgresql+asyncpg://radar:radar@db:5432/radar
+    # A local stack: allows the demo sign-in, which the image's production default refuses.
+    ENVIRONMENT: ${ENVIRONMENT:-development}
   restart: unless-stopped
 
 services:
