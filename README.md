@@ -87,10 +87,10 @@ existed land in an "Imported projects" workspace that the first user to sign in 
    railway config apply  # creates Postgres, api, worker and web
    ```
 
-3. In the dashboard, open the **web** service and generate a public domain.
-4. On the **api** service, set `APP_BASE_URL` to that `https://` URL.
+3. In the dashboard, open the **web** service and generate a public domain. `APP_BASE_URL` on **api** is that domain, so GitHub can send people back to the site.
+4. Create an OAuth app at <https://github.com/settings/developers>. Set the callback URL to `https://<the web domain>/v1/auth/github/callback`. On the **api** service, set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET`, then redeploy **api**. The login page then shows **Continue with GitHub**, and the first sign-in creates the account.
 5. On **api** and **worker**, set `GITHUB_TOKEN` (a token with no scopes). Without it GitHub allows 60 requests an hour, which a sync uses up. To turn on live explanations, also set `ANTHROPIC_API_KEY` on **api** and change `LLM_PROVIDER` to `anthropic`.
-6. Open the web URL and choose **Try the demo account**. The login page shows the last day the demo stays open.
+6. Open the web URL. **Try the demo account** stays available through the date on the login page.
 
 The file deploys the private repo `m5a0r7/release-radar`, branch `main`. Grant the [Railway GitHub App](https://github.com/apps/railway-app/installations/new) access to that repo before `railway config apply`.
 

@@ -30,8 +30,11 @@ export default defineRailway(() => {
       ...appEnv,
       // Fixed, so the web service can reach it. Railway healthchecks use this too.
       PORT: "8000",
-      // Set this to the web service's public https URL once Railway generates a domain.
-      APP_BASE_URL: preserve(),
+      // Browser origin. GitHub returns to APP_BASE_URL/v1/auth/github/callback.
+      APP_BASE_URL: "https://${{web.RAILWAY_PUBLIC_DOMAIN}}",
+      // Create the OAuth app in GitHub settings, then paste both values in the dashboard.
+      GITHUB_OAUTH_CLIENT_ID: preserve(),
+      GITHUB_OAUTH_CLIENT_SECRET: preserve(),
     },
   });
 
