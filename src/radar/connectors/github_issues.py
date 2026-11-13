@@ -4,6 +4,7 @@ Issue events (milestoned, demilestoned, closed, reopened, assigned) are mapped o
 normalized history as Jira's changelog, so the drift metrics need no GitHub-specific code.
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -23,6 +24,8 @@ from radar.connectors.github import next_page, parse_time, require_repository
 from radar.connectors.http import RetryingFetcher
 
 PAGE_SIZE = 100
+# Issues are saved in small groups so a sync reports progress before a whole page is done.
+ITEM_BATCH = 8
 # Bounds per-issue history requests; issues with more events than this are rare.
 MAX_EVENT_PAGES_PER_ISSUE = 5
 # The repository-wide event feed is only scanned to find issues removed from a milestone.
@@ -82,8 +85,13 @@ class GitHubIssuesTracker:
         async for page in self._pages(f"repos/{project_key}/issues", params):
             issues = [raw for raw in page if "pull_request" not in raw]
             seen.update(raw["number"] for raw in issues)
-            if issues:
-                yield [await self._item(project_key, raw, milestones) for raw in issues]
+            for start in range(0, len(issues), ITEM_BATCH):
+                chunk = issues[start : start + ITEM_BATCH]
+                yield list(
+                    await asyncio.gather(
+                        *(self._item(project_key, raw, milestones) for raw in chunk)
+                    )
+                )
 
         # Issues moved out of the milestone are no longer listed under it; find them through
         # the repository's recent `demilestoned` events so scope removals are counted.

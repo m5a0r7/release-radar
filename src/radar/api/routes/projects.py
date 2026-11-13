@@ -33,14 +33,14 @@ async def _tracked(
     """Releases with at least one sync job, with their latest sync status, per project."""
     release_id = Job.payload["release_id"].astext.cast(BigInteger)
     rows = await session.execute(
-        select(Release, Job.status, Job.finished_at)
+        select(Release, Job.id, Job.status, Job.finished_at, Job.progress, Job.last_error)
         .join(Job, release_id == Release.id)
         .where(Job.kind == SYNC_RELEASE, Release.project_id.in_(project_ids))
         .order_by(Release.project_id, Release.id.desc(), Job.id.desc())
     )
     tracked: dict[int, list[TrackedReleaseOut]] = {pid: [] for pid in project_ids}
     seen: dict[int, TrackedReleaseOut] = {}
-    for release, job_status, finished_at in rows:
+    for release, job_id, job_status, finished_at, progress, last_error in rows:
         entry = seen.get(release.id)
         if entry is None:
             entry = TrackedReleaseOut(
@@ -49,6 +49,9 @@ async def _tracked(
                 target_date=release.target_date,
                 last_synced_at=None,
                 sync_status=job_status,
+                sync_job_id=job_id,
+                sync_progress=progress or {},
+                sync_error=last_error,
             )
             seen[release.id] = entry
             tracked[release.project_id].append(entry)

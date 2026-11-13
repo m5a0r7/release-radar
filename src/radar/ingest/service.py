@@ -85,6 +85,7 @@ class SyncService:
             cursor = await store.get_cursor(session, project.id, stream)
 
         count = 0
+        await on_progress({"stage": "work_items", "work_items": 0})
         async for page in tracker.iter_release_items(
             project.tracker_key,
             release.external_id,

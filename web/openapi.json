@@ -2462,6 +2462,35 @@
             "type": "string",
             "title": "Sync Status",
             "description": "Status of the latest sync job."
+          },
+          "sync_job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sync Job Id"
+          },
+          "sync_progress": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Sync Progress",
+            "description": "Latest sync progress, updated as each batch is saved."
+          },
+          "sync_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sync Error",
+            "description": "Why the latest sync is waiting or failed, when known."
           }
         },
         "type": "object",

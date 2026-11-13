@@ -150,11 +150,14 @@ export function useDrift(
   release: string | undefined,
   period: Period,
   enabled: boolean,
+  syncing = false,
 ) {
   return useQuery({
     ...driftQuery(slug ?? '', release ?? '', period),
     enabled: enabled && slug !== undefined && release !== undefined,
     placeholderData: keepPreviousData,
+    // Saved batches should show up before the sync job finishes.
+    refetchInterval: syncing ? 3000 : false,
   })
 }
 

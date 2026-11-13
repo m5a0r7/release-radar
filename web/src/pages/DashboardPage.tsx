@@ -84,11 +84,13 @@ function Dashboard({ project, release }: { project: Project; release: string }) 
   const location = useLocation()
   const initialJobId = (location.state as { jobId?: number } | null)?.jobId
   const releases = useReleases(project.slug)
-  const drift = useDrift(project.slug, release, period, problem === null)
+  const tracked = project.tracked_releases.find((r) => r.name === release)
+  const syncing =
+    tracked !== undefined && (tracked.sync_status === 'queued' || tracked.sync_status === 'running')
+  const drift = useDrift(project.slug, release, period, problem === null, syncing)
   const [explain, setExplain] = useState(false)
   const narrative = useNarrative(project.slug, release, period, problem === null && explain)
   const [highlighted, setHighlighted] = useState<string | null>(null)
-  const tracked = project.tracked_releases.find((r) => r.name === release)
   const stored = releases.data?.find((r) => r.name === release)
 
   useEffect(() => {
@@ -158,8 +160,9 @@ function Dashboard({ project, release }: { project: Project; release: string }) 
             <>
               {!drift.data.coverage.complete && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
-                  {drift.data.coverage.notes.join(' ')} Use <strong>Sync</strong> to fetch the
-                  latest data.
+                  {syncing
+                    ? 'Sync is still running. These numbers update as each batch is saved.'
+                    : `${drift.data.coverage.notes.join(' ')} Use Sync to fetch the latest data.`}
                 </div>
               )}
               <Verdict

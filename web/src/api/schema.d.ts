@@ -886,6 +886,20 @@ export interface components {
              * @description Status of the latest sync job.
              */
             sync_status: string;
+            /** Sync Job Id */
+            sync_job_id?: number | null;
+            /**
+             * Sync Progress
+             * @description Latest sync progress, updated as each batch is saved.
+             */
+            sync_progress?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Sync Error
+             * @description Why the latest sync is waiting or failed, when known.
+             */
+            sync_error?: string | null;
         };
         /** TrackerCheck */
         TrackerCheck: {

@@ -56,6 +56,13 @@ class TrackedReleaseOut(BaseModel):
     target_date: date | None
     last_synced_at: datetime | None
     sync_status: str = Field(description="Status of the latest sync job.")
+    sync_job_id: int | None = None
+    sync_progress: dict[str, Any] = Field(
+        default_factory=dict, description="Latest sync progress, updated as each batch is saved."
+    )
+    sync_error: str | None = Field(
+        default=None, description="Why the latest sync is waiting or failed, when known."
+    )
 
 
 class ProjectOut(BaseModel):
