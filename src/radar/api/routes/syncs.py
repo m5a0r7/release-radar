@@ -48,14 +48,29 @@ async def start_sync(
     return job
 
 
+@router.post("/jobs/{job_id}/cancel", response_model=JobOut)
+async def cancel_job(
+    job_id: Annotated[int, Path(ge=1)], session: SessionDep, principal: PrincipalDep
+) -> Job:
+    """Stop a queued or running sync. Tickets already saved are kept."""
+    job = await _job_in_workspace(session, job_id, principal.workspace.id)
+    await queue.cancel(session, job.id)
+    await session.refresh(job)
+    return job
+
+
 @router.get("/jobs/{job_id}", response_model=JobOut)
 async def get_job(
     job_id: Annotated[int, Path(ge=1)], session: SessionDep, principal: PrincipalDep
 ) -> Job:
+    return await _job_in_workspace(session, job_id, principal.workspace.id)
+
+
+async def _job_in_workspace(session: SessionDep, job_id: int, workspace_id: int) -> Job:
     job = await session.scalar(
         select(Job)
         .join(Project, Project.id == Job.project_id)
-        .where(Job.id == job_id, Project.workspace_id == principal.workspace.id)
+        .where(Job.id == job_id, Project.workspace_id == workspace_id)
     )
     if job is None:
         raise ProblemError(404, "Job not found")

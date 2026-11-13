@@ -82,6 +82,8 @@ class Worker:
             return
         try:
             progress = await self._dispatch(job)
+        except queue.JobCancelled:
+            log.info("job_cancelled")
         except RateLimitedError as exc:
             log.warning("job_rate_limited", retry_at=exc.retry_at.isoformat())
             await self._fail(job, str(exc), retry_at=exc.retry_at, count_attempt=False)
@@ -107,7 +109,10 @@ class Worker:
 
         async def on_progress(progress: dict[str, Any]) -> None:
             async with transaction(self._sessions) as session:
-                await queue.heartbeat(session, job.id, self._settings.job_lease_seconds, progress)
+                if not await queue.heartbeat(
+                    session, job.id, self._settings.job_lease_seconds, progress
+                ):
+                    raise queue.JobCancelled
 
         result = await self._sync.sync_release(project, release, on_progress)
         return {"stage": "done", "work_items": result.items, "code_changes": result.changes}

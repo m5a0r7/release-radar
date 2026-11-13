@@ -37,6 +37,7 @@ async def test_duplicate_active_job_is_rejected_but_finished_one_is_not(
     job = await enqueue(container)
     with pytest.raises(queue.JobAlreadyActiveError):
         await enqueue(container)
+    assert await claim(container) is not None
 
     async with transaction(container.sessions) as session:
         await queue.succeed(session, job.id, {})
@@ -68,6 +69,29 @@ async def test_failures_retry_then_fail_permanently(container: Container) -> Non
             await queue.fail(session, job, "boom", retry_at=datetime.now(UTC))
             refreshed = await session.get(Job, job.id)
             assert refreshed is not None and refreshed.status == expected
+
+
+async def test_cancel_stops_the_job_and_allows_another(container: Container) -> None:
+    job = await enqueue(container)
+    async with transaction(container.sessions) as session:
+        assert await queue.cancel(session, job.id)
+        stopped = await session.get(Job, job.id)
+    assert stopped is not None and stopped.status == queue.CANCELLED
+    assert await claim(container) is None
+
+    again = await enqueue(container)
+    assert again.id != job.id
+
+
+async def test_a_stopped_job_is_not_requeued(container: Container) -> None:
+    job = await enqueue(container)
+    running = await claim(container)
+    assert running is not None
+    async with transaction(container.sessions) as session:
+        await queue.cancel(session, job.id)
+        await queue.fail(session, running, "github: rate limited until later", count_attempt=False)
+        stopped = await session.get(Job, job.id)
+    assert stopped is not None and stopped.status == queue.CANCELLED
 
 
 async def test_rate_limited_retry_does_not_consume_an_attempt(container: Container) -> None:

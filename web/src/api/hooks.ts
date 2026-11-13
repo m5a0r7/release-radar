@@ -211,6 +211,18 @@ export async function startSync(slug: string, release: string): Promise<number> 
   }
 }
 
+export function useCancelSync() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (jobId: number) =>
+      unwrap(api.POST('/v1/jobs/{job_id}/cancel', { params: { path: { job_id: jobId } } })),
+    onSuccess: (job) => {
+      client.setQueryData(['job', job.id], job)
+      void client.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
 export function useStartSync() {
   const client = useQueryClient()
   return useMutation({

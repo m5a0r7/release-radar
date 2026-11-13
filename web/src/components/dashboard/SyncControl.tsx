@@ -3,7 +3,7 @@ import { RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import type { TrackedRelease } from '../../api/client'
-import { isActive, useJob, useStartSync } from '../../api/hooks'
+import { isActive, useCancelSync, useJob, useStartSync } from '../../api/hooks'
 import { count, relativeTime } from '../../lib/format'
 import { Button } from '../ui'
 
@@ -23,6 +23,7 @@ export function SyncControl({
 }) {
   const [jobId, setJobId] = useState(initialJobId)
   const start = useStartSync()
+  const cancel = useCancelSync()
   const backgroundSync = tracked !== undefined && ACTIVE.has(tracked.sync_status)
   const job = useJob(jobId ?? (backgroundSync ? (tracked?.sync_job_id ?? undefined) : undefined))
   const client = useQueryClient()
@@ -42,6 +43,7 @@ export function SyncControl({
   const progress = (job.data?.progress ?? tracked?.sync_progress) as
     { work_items?: number; code_changes?: number } | undefined
   const phase = job.data?.status ?? tracked?.sync_status
+  const stopId = job.data?.id ?? jobId ?? tracked?.sync_job_id ?? undefined
   const errorText = job.data?.last_error ?? tracked?.sync_error ?? ''
   const counted =
     progress !== undefined &&
@@ -49,6 +51,7 @@ export function SyncControl({
 
   let status: string
   if (start.error) status = 'Could not start sync'
+  else if (phase === 'cancelled') status = 'Sync stopped'
   else if (phase === 'failed' || job.data?.status === 'failed') status = 'Sync failed'
   else if (phase === 'queued' && /rate limited/i.test(errorText))
     status = 'Waiting on GitHub’s rate limit'
@@ -71,6 +74,15 @@ export function SyncControl({
       >
         {status}
       </span>
+      {running && (
+        <Button
+          variant="secondary"
+          disabled={cancel.isPending || stopId === undefined}
+          onClick={() => stopId !== undefined && cancel.mutate(stopId)}
+        >
+          Stop
+        </Button>
+      )}
       <Button
         variant="secondary"
         disabled={running}

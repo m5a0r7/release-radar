@@ -20,6 +20,11 @@ QUEUED = "queued"
 RUNNING = "running"
 SUCCEEDED = "succeeded"
 FAILED = "failed"
+CANCELLED = "cancelled"
+
+
+class JobCancelled(Exception):
+    """The job was stopped while a worker still held it."""
 
 
 class JobAlreadyActiveError(Exception):
@@ -93,18 +98,37 @@ async def claim(session: AsyncSession, lease_seconds: int) -> Job | None:
 
 async def heartbeat(
     session: AsyncSession, job_id: int, lease_seconds: int, progress: dict[str, Any]
-) -> None:
-    await session.execute(
+) -> bool:
+    """Renew the lease. Returns False when the job was stopped and the worker should exit."""
+    updated = await session.scalar(
         update(Job)
         .where(Job.id == job_id, Job.status == RUNNING)
         .values(progress=progress, lease_expires_at=func.now() + timedelta(seconds=lease_seconds))
+        .returning(Job.id)
     )
+    return updated is not None
+
+
+async def cancel(session: AsyncSession, job_id: int) -> bool:
+    """Stop a queued or running job. A later sync for the same release can be queued."""
+    updated = await session.scalar(
+        update(Job)
+        .where(Job.id == job_id, Job.status.in_([QUEUED, RUNNING]))
+        .values(
+            status=CANCELLED,
+            finished_at=func.now(),
+            lease_expires_at=None,
+            last_error="Cancelled",
+        )
+        .returning(Job.id)
+    )
+    return updated is not None
 
 
 async def succeed(session: AsyncSession, job_id: int, progress: dict[str, Any]) -> None:
     await session.execute(
         update(Job)
-        .where(Job.id == job_id)
+        .where(Job.id == job_id, Job.status == RUNNING)
         .values(
             status=SUCCEEDED,
             progress=progress,
@@ -130,7 +154,7 @@ async def fail(
         backoff = timedelta(seconds=30 * 2 ** max(attempts - 1, 0))
         await session.execute(
             update(Job)
-            .where(Job.id == job.id)
+            .where(Job.id == job.id, Job.status == RUNNING)
             .values(
                 status=QUEUED,
                 attempts=attempts,
@@ -142,6 +166,6 @@ async def fail(
         return
     await session.execute(
         update(Job)
-        .where(Job.id == job.id)
+        .where(Job.id == job.id, Job.status == RUNNING)
         .values(status=FAILED, finished_at=func.now(), lease_expires_at=None, last_error=error)
     )
