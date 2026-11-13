@@ -1,4 +1,5 @@
 import time
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 import anthropic
@@ -11,7 +12,17 @@ log = structlog.get_logger(__name__)
 
 
 class LLMError(Exception):
-    pass
+    def __init__(self, message: str, *, input_tokens: int = 0, output_tokens: int = 0) -> None:
+        super().__init__(message)
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+
+
+@dataclass(frozen=True, slots=True)
+class LLMResult:
+    arguments: dict[str, Any]
+    input_tokens: int
+    output_tokens: int
 
 
 class StructuredLLM(Protocol):
@@ -20,7 +31,7 @@ class StructuredLLM(Protocol):
 
     async def generate(
         self, system: str, prompt: str, tool_name: str, schema: dict[str, Any]
-    ) -> dict[str, Any]:
+    ) -> LLMResult:
         """Return the arguments of a forced tool call matching `schema`."""
         ...
 
@@ -43,7 +54,7 @@ class AnthropicLLM:
 
     async def generate(
         self, system: str, prompt: str, tool_name: str, schema: dict[str, Any]
-    ) -> dict[str, Any]:
+    ) -> LLMResult:
         tool: ToolParam = {
             "name": tool_name,
             "description": "Submit the release narrative.",
@@ -71,10 +82,15 @@ class AnthropicLLM:
             output_tokens=response.usage.output_tokens,
             stop_reason=response.stop_reason,
         )
+        usage = response.usage
         for block in response.content:
             if block.type == "tool_use" and block.name == tool_name:
-                return dict(block.input)
-        raise LLMError("model did not call the narrative tool")
+                return LLMResult(dict(block.input), usage.input_tokens, usage.output_tokens)
+        raise LLMError(
+            "model did not call the narrative tool",
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+        )
 
     async def aclose(self) -> None:
         await self._client.close()

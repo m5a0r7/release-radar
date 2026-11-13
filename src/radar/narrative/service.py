@@ -1,5 +1,7 @@
+import asyncio
 import hashlib
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import structlog
@@ -11,8 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from radar.db.models import Narrative
 from radar.insights.evidence import Evidence, build_evidence
 from radar.insights.schemas import DriftReport
+from radar.narrative.budget import Fitted, estimate_tokens, fit_evidence, schema_tokens
 from radar.narrative.confidence import ConfidenceCap, calibrate, data_support_cap
-from radar.narrative.llm import LLMError, StructuredLLM
+from radar.narrative.llm import LLMError, LLMResult, StructuredLLM
 from radar.narrative.prompt import (
     PROMPT_VERSION,
     SYSTEM_PROMPT,
@@ -21,6 +24,7 @@ from radar.narrative.prompt import (
     repair_message,
     user_message,
 )
+from radar.narrative.quota import QuotaExceededError, UsageLedger
 from radar.narrative.schemas import (
     Finding,
     NarrativeDraft,
@@ -36,15 +40,34 @@ log = structlog.get_logger(__name__)
 MAX_ATTEMPTS = 2
 
 
+@dataclass(frozen=True, slots=True)
+class NarrativeLimits:
+    max_input_tokens: int = 12_000
+    max_output_tokens: int = 2048
+    max_concurrency: int = 4
+    queue_timeout_seconds: float = 30.0
+
+
 class NarrativeService:
     """Evidence -> LLM draft -> grounding verification -> calibrated, cached response.
 
     The LLM never sees raw upstream text (titles, descriptions), only computed evidence, which
     keeps the prompt-injection surface minimal. Any failure degrades to the template narrator.
+    Prompts are trimmed to a token budget, calls are capped per process (`max_concurrency`) and
+    metered per workspace (`ledger`), so ticket volume and traffic cannot run up the bill.
     """
 
-    def __init__(self, llm: StructuredLLM | None) -> None:
+    def __init__(
+        self,
+        llm: StructuredLLM | None,
+        *,
+        ledger: UsageLedger | None = None,
+        limits: NarrativeLimits | None = None,
+    ) -> None:
         self._llm = llm
+        self._ledger = ledger
+        self._limits = limits or NarrativeLimits()
+        self._slots = asyncio.Semaphore(self._limits.max_concurrency)
 
     @property
     def _identity(self) -> tuple[str, str]:
@@ -53,11 +76,20 @@ class NarrativeService:
         return self._llm.provider, self._llm.model
 
     async def narrate(
-        self, session: AsyncSession, report: DriftReport, *, refresh: bool = False
+        self,
+        session: AsyncSession,
+        report: DriftReport,
+        *,
+        workspace_id: int | None = None,
+        refresh: bool = False,
     ) -> NarrativeResponse:
-        evidence = build_evidence(report)
+        """Raises `QuotaExceededError` when the workspace is out of LLM budget."""
+        full = build_evidence(report)
         cap = data_support_cap(report)
         provider, model = self._identity
+        fitted = self._fit(report, full)
+        evidence = fitted.evidence if fitted else full
+        notes = fitted.notes if fitted else []
         cache_key = _cache_key(report, evidence, provider, model)
 
         if not refresh:
@@ -67,8 +99,14 @@ class NarrativeService:
                 response.meta.cached = True
                 return response
 
-        draft, errors, degraded = await self._draft(report, evidence)
+        if self._llm is not None and fitted is None:
+            log.warning("narrative_over_budget", evidence=len(full))
+            draft = template_draft(report, full)
+            errors, degraded = ["evidence exceeds the LLM input budget"], True
+        else:
+            draft, errors, degraded = await self._draft(report, evidence, workspace_id)
         response = _assemble(report, evidence, draft, cap, provider, model, degraded, errors)
+        response.caveats += [] if degraded else notes
         if not degraded:
             await session.execute(
                 insert(Narrative)
@@ -83,8 +121,14 @@ class NarrativeService:
             )
         return response
 
+    def _fit(self, report: DriftReport, evidence: list[Evidence]) -> Fitted | None:
+        # A repair turn re-sends the prompt plus the previous answer (at most max_output_tokens).
+        fixed = estimate_tokens(SYSTEM_PROMPT) + schema_tokens(output_schema()) + 300
+        budget = self._limits.max_input_tokens - self._limits.max_output_tokens - fixed
+        return fit_evidence(evidence, lambda ev: estimate_tokens(user_message(report, ev)), budget)
+
     async def _draft(
-        self, report: DriftReport, evidence: list[Evidence]
+        self, report: DriftReport, evidence: list[Evidence], workspace_id: int | None
     ) -> tuple[NarrativeDraft, list[str], bool]:
         if self._llm is None:
             return template_draft(report, evidence), [], False
@@ -95,8 +139,8 @@ class NarrativeService:
         errors: list[str] = []
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
-                raw = await self._llm.generate(SYSTEM_PROMPT, prompt, TOOL_NAME, output_schema())
-                draft = NarrativeDraft.model_validate(raw)
+                result = await self._call(prompt, report, workspace_id, first=attempt == 1)
+                draft = NarrativeDraft.model_validate(result.arguments)
             except LLMError as exc:
                 errors = [str(exc)]
                 break
@@ -117,6 +161,35 @@ class NarrativeService:
 
         log.warning("narrative_degraded", errors=errors)
         return template_draft(report, evidence), errors, True
+
+    async def _call(
+        self, prompt: str, report: DriftReport, workspace_id: int | None, *, first: bool
+    ) -> LLMResult:
+        llm, ledger = self._llm, self._ledger
+        assert llm is not None
+        try:
+            async with asyncio.timeout(self._limits.queue_timeout_seconds):
+                await self._slots.acquire()
+        except TimeoutError as exc:
+            raise LLMError("LLM is at capacity") from exc
+        try:
+            if ledger is None or workspace_id is None:
+                return await llm.generate(SYSTEM_PROMPT, prompt, TOOL_NAME, output_schema())
+            try:
+                call_id = await ledger.reserve(workspace_id, report.release.id, llm.model)
+            except QuotaExceededError as exc:
+                if first:
+                    raise
+                raise LLMError(f"repair skipped: {exc}") from exc
+            try:
+                result = await llm.generate(SYSTEM_PROMPT, prompt, TOOL_NAME, output_schema())
+            except LLMError as exc:
+                await ledger.complete(call_id, "error", exc.input_tokens, exc.output_tokens)
+                raise
+            await ledger.complete(call_id, "ok", result.input_tokens, result.output_tokens)
+            return result
+        finally:
+            self._slots.release()
 
 
 def _assemble(

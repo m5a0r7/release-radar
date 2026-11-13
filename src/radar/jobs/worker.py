@@ -13,7 +13,7 @@ from radar.connectors.errors import RateLimitedError, UpstreamNotFoundError
 from radar.connectors.registry import Connectors
 from radar.db.models import Job, Project, Release
 from radar.db.session import create_engine, create_session_factory, transaction
-from radar.ingest.service import SyncService
+from radar.ingest.service import SyncService, SyncTooLargeError
 from radar.jobs import queue
 from radar.jobs.scheduler import schedule_due_syncs
 from radar.logging import configure_logging
@@ -85,8 +85,8 @@ class Worker:
         except RateLimitedError as exc:
             log.warning("job_rate_limited", retry_at=exc.retry_at.isoformat())
             await self._fail(job, str(exc), retry_at=exc.retry_at, count_attempt=False)
-        except UpstreamNotFoundError as exc:
-            log.warning("job_upstream_not_found", error=str(exc))
+        except (UpstreamNotFoundError, SyncTooLargeError) as exc:
+            log.warning("job_failed_permanently", error=str(exc))
             await self._fail(job, str(exc), retryable=False)
         except Exception as exc:
             log.exception("job_failed")
@@ -124,7 +124,11 @@ async def main() -> None:
     sessions = create_session_factory(engine)
     connectors = Connectors(settings)
     worker = Worker(
-        sessions, SyncService(sessions, connectors, settings.github_backfill_days), settings
+        sessions,
+        SyncService(
+            sessions, connectors, settings.github_backfill_days, settings.sync_max_work_items
+        ),
+        settings,
     )
 
     stop = asyncio.Event()

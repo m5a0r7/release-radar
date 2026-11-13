@@ -5,8 +5,10 @@ import httpx
 import respx
 from sqlalchemy import func, select, update
 
+from radar.config import Settings
 from radar.container import Container
 from radar.db.models import Job
+from radar.ingest.service import SyncService
 from radar.jobs.scheduler import schedule_due_syncs
 from radar.jobs.worker import Worker
 from tests.factories import github_pull
@@ -211,3 +213,18 @@ async def test_github_issues_project_syncs_and_links_prs_by_body(
     assert (report["progress"]["completed_in_period"], report["progress"]["open_at_end"]) == (1, 1)
     assert report["code"]["linked_merged_in_period"] == 1
 
+
+async def test_oversized_release_fails_without_retrying(
+    container: Container, client: httpx.AsyncClient, settings: Settings, upstream: Any
+) -> None:
+    small = Worker(
+        container.sessions,
+        SyncService(container.sessions, container.connectors, 730, max_work_items=2),
+        settings,
+    )
+
+    job = await synced(client, small)
+
+    assert job["status"] == "failed"
+    assert job["attempts"] == 1
+    assert "more than 2 tickets" in job["last_error"]

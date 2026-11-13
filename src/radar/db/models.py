@@ -269,3 +269,22 @@ class Narrative(Base):
     payload: Mapped[dict[str, Any]]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
+
+class LlmCall(Base):
+    """One LLM request, for per-workspace quotas and cost accounting.
+
+    A row is reserved as `pending` before the call (under a per-workspace lock, so concurrent
+    requests cannot overshoot the quota) and completed with the token counts afterwards.
+    """
+
+    __tablename__ = "llm_calls"
+    __table_args__ = (Index("ix_llm_calls_workspace_created", "workspace_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"))
+    release_id: Mapped[int | None] = mapped_column(ForeignKey("releases.id", ondelete="SET NULL"))
+    model: Mapped[str] = mapped_column(String(128))
+    outcome: Mapped[str] = mapped_column(String(16))
+    input_tokens: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    output_tokens: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())

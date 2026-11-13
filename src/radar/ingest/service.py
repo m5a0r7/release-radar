@@ -30,6 +30,10 @@ class SyncResult:
     changes: int
 
 
+class SyncTooLargeError(Exception):
+    """The release exceeds `sync_max_work_items`; retrying cannot help."""
+
+
 class SyncService:
     """Pulls a release's work items and the project's code changes into Postgres.
 
@@ -42,8 +46,10 @@ class SyncService:
         session_factory: async_sessionmaker[AsyncSession],
         connectors: Connectors,
         github_backfill_days: int,
+        max_work_items: int = 20_000,
     ) -> None:
         self._sessions = session_factory
+        self._max_items = max_work_items
         self._connectors = connectors
         self._backfill = timedelta(days=github_backfill_days)
 
@@ -84,6 +90,11 @@ class SyncService:
             release.external_id,
             cursor.synced_until if cursor else None,
         ):
+            if count + len(page) > self._max_items:
+                raise SyncTooLargeError(
+                    f"{release.name} has more than {self._max_items} tickets; "
+                    "raise SYNC_MAX_WORK_ITEMS to track it"
+                )
             async with transaction(self._sessions) as session:
                 await store.upsert_work_items(session, project.id, page)
             count += len(page)

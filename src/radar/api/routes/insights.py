@@ -6,10 +6,12 @@ from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
 
 from radar.api.deps import ContainerDep, PeriodDep, ProjectDep, ReleaseDep, SessionDep
+from radar.api.errors import ProblemError
 from radar.db.models import Project, Release
 from radar.insights.drift import compute_drift
 from radar.insights.repository import load_drift_inputs
 from radar.insights.schemas import DriftReport
+from radar.narrative.quota import QuotaExceededError
 from radar.narrative.schemas import NarrativeResponse
 
 router = APIRouter(prefix="/v1/projects/{slug}/releases/{release}", tags=["insights"])
@@ -57,7 +59,11 @@ async def get_drift(
     return _conditional(request, report)
 
 
-@router.get("/narrative", response_model=NarrativeResponse)
+@router.get(
+    "/narrative",
+    response_model=NarrativeResponse,
+    responses={429: {"description": "The workspace is out of AI budget; see Retry-After."}},
+)
 async def get_narrative(
     request: Request,
     project: ProjectDep,
@@ -69,5 +75,15 @@ async def get_narrative(
 ) -> Response:
     """LLM explanation of the drift: findings, hypotheses, calibrated confidence and evidence."""
     report = await _report(session, container, project, release, period)
-    narrative = await container.narratives.narrate(session, report, refresh=refresh)
+    try:
+        narrative = await container.narratives.narrate(
+            session, report, workspace_id=project.workspace_id, refresh=refresh
+        )
+    except QuotaExceededError as exc:
+        raise ProblemError(
+            429,
+            "AI explanation limit reached",
+            f"{exc} Cached explanations and all metrics remain available.",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
     return _conditional(request, narrative)

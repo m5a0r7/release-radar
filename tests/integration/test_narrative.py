@@ -1,13 +1,17 @@
 from typing import Any
 
+import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from radar.db.models import Project, Release, Workspace
+from radar.container import Container
+from radar.db.models import LlmCall, Project, Release, Workspace
 from radar.insights.drift import compute_drift
 from radar.insights.evidence import build_evidence
 from radar.insights.schemas import DriftReport
-from radar.narrative.llm import LLMError
-from radar.narrative.service import NarrativeService
+from radar.narrative.llm import LLMError, LLMResult
+from radar.narrative.quota import LlmLimits, QuotaExceededError, UsageLedger
+from radar.narrative.service import NarrativeLimits, NarrativeService
 from tests.factories import scenario
 
 
@@ -21,12 +25,12 @@ class FakeLLM:
 
     async def generate(
         self, system: str, prompt: str, tool_name: str, schema: dict[str, Any]
-    ) -> dict[str, Any]:
+    ) -> LLMResult:
         self.prompts.append(prompt)
         response = self._responses.pop(0)
         if isinstance(response, Exception):
             raise response
-        return response
+        return LLMResult(response, input_tokens=1_000, output_tokens=200)
 
 
 async def report(session: AsyncSession) -> DriftReport:
@@ -119,3 +123,37 @@ async def test_malformed_output_is_retried(session: AsyncSession) -> None:
 
     assert not result.meta.degraded
     assert "schema:" in llm.prompts[1]
+
+
+async def test_workspace_quota_is_enforced_and_usage_recorded(
+    session: AsyncSession, container: Container
+) -> None:
+    drift = await report(session)
+    workspace_id = await session.scalar(select(Workspace.id))
+    await session.commit()
+    good = answer(drift, "50% of the 2 completed items were unplanned.")
+    ledger = UsageLedger(container.sessions, LlmLimits(requests_per_hour=1, tokens_per_day=10**6))
+    service = NarrativeService(FakeLLM(good, good), ledger=ledger)
+
+    first = await service.narrate(session, drift, workspace_id=workspace_id)
+    with pytest.raises(QuotaExceededError) as exceeded:
+        await service.narrate(session, drift, workspace_id=workspace_id, refresh=True)
+    cached = await service.narrate(session, drift, workspace_id=workspace_id)
+
+    assert not first.meta.degraded and cached.meta.cached
+    assert 0 < exceeded.value.retry_after_seconds <= 3600
+    calls = (await session.execute(select(LlmCall))).scalars().all()
+    assert [(c.outcome, c.input_tokens, c.output_tokens) for c in calls] == [("ok", 1_000, 200)]
+
+
+async def test_prompt_over_budget_falls_back_without_calling_the_llm(
+    session: AsyncSession,
+) -> None:
+    drift = await report(session)
+    llm = FakeLLM()
+    limits = NarrativeLimits(max_input_tokens=2_000, max_output_tokens=1_000)
+
+    result = await NarrativeService(llm, limits=limits).narrate(session, drift)
+
+    assert result.meta.degraded and llm.prompts == []
+    assert result.meta.verification_errors == ["evidence exceeds the LLM input budget"]

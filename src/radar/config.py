@@ -46,6 +46,25 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-5-5"
     llm_max_tokens: int = 2048
     llm_timeout_seconds: float = 90.0
+    llm_max_input_tokens: int = Field(
+        default=12_000,
+        ge=2_000,
+        description="Prompt budget; evidence is trimmed to fit, else the template is used.",
+    )
+    llm_max_concurrency: int = Field(
+        default=4, ge=1, description="Concurrent LLM calls per API process."
+    )
+    llm_requests_per_hour: int = Field(
+        default=30, ge=1, description="LLM calls per workspace per rolling hour."
+    )
+    llm_tokens_per_day: int = Field(
+        default=1_000_000, ge=1, description="LLM input+output tokens per workspace per day."
+    )
+    sync_max_work_items: int = Field(
+        default=20_000,
+        ge=100,
+        description="A release with more tickets than this fails to sync instead of growing.",
+    )
 
     worker_poll_interval_seconds: float = 2.0
     job_lease_seconds: int = 600

@@ -9,7 +9,8 @@ from radar.connectors.registry import Connectors
 from radar.db.session import create_engine, create_session_factory
 from radar.ingest.service import SyncService
 from radar.narrative.llm import AnthropicLLM
-from radar.narrative.service import NarrativeService
+from radar.narrative.quota import LlmLimits, UsageLedger
+from radar.narrative.service import NarrativeLimits, NarrativeService
 
 
 @dataclass
@@ -41,8 +42,21 @@ class Container:
             engine=engine,
             sessions=sessions,
             connectors=connectors,
-            sync=SyncService(sessions, connectors, settings.github_backfill_days),
-            narratives=NarrativeService(llm),
+            sync=SyncService(
+                sessions, connectors, settings.github_backfill_days, settings.sync_max_work_items
+            ),
+            narratives=NarrativeService(
+                llm,
+                ledger=UsageLedger(
+                    sessions,
+                    LlmLimits(settings.llm_requests_per_hour, settings.llm_tokens_per_day),
+                ),
+                limits=NarrativeLimits(
+                    max_input_tokens=settings.llm_max_input_tokens,
+                    max_output_tokens=settings.llm_max_tokens,
+                    max_concurrency=settings.llm_max_concurrency,
+                ),
+            ),
             llm=llm,
             oauth_client=oauth_client,
             github_oauth=github_oauth,
