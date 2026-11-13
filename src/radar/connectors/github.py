@@ -12,6 +12,8 @@ from radar.connectors.http import RetryingFetcher
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
 SEARCH_RE = re.compile(r"^[A-Za-z0-9._/-]{1,100}$")
 PAGE_SIZE = 100
+# Only scanned for issue references; long bodies are mostly logs and templates.
+MAX_BODY_CHARS = 20_000
 
 
 class GitHubCodeHost:
@@ -24,7 +26,7 @@ class GitHubCodeHost:
         self._api_host = httpx.URL(api_url).host
 
     async def recent_changes(self, repository: str, limit: int) -> list[CodeChangeRecord]:
-        _require_repository(repository)
+        require_repository(repository)
         response = await self._fetcher.get(
             f"repos/{repository}/pulls",
             params={"state": "all", "sort": "created", "direction": "desc", "per_page": limit},
@@ -45,7 +47,7 @@ class GitHubCodeHost:
                 description=raw.get("description"),
                 language=raw.get("language"),
                 stars=int(raw.get("stargazers_count", 0)),
-                pushed_at=_parse(raw.get("pushed_at")),
+                pushed_at=parse_time(raw.get("pushed_at")),
             )
             for raw in response.json().get("items", [])
             if not raw.get("private")
@@ -54,7 +56,7 @@ class GitHubCodeHost:
     async def iter_changes(
         self, repository: str, updated_since: datetime
     ) -> AsyncIterator[list[CodeChangeRecord]]:
-        _require_repository(repository)
+        require_repository(repository)
 
         url: str | None = f"repos/{repository}/pulls"
         params: dict[str, str | int] | None = {
@@ -71,27 +73,28 @@ class GitHubCodeHost:
                 yield fresh
             if len(fresh) < len(page):
                 return
-            url = self._next_page(response)
+            url = next_page(response, self._api_host)
             params = None
 
-    def _next_page(self, response: httpx.Response) -> str | None:
-        next_link = response.links.get("next", {}).get("url")
-        if next_link is None:
-            return None
-        # Only follow pagination links back to the configured API host.
-        if httpx.URL(next_link).host != self._api_host:
-            raise UpstreamError(self.name, "pagination link points to an unexpected host")
-        return str(next_link)
+
+def next_page(response: httpx.Response, api_host: str) -> str | None:
+    next_link = response.links.get("next", {}).get("url")
+    if next_link is None:
+        return None
+    # Only follow pagination links back to the configured API host.
+    if httpx.URL(next_link).host != api_host:
+        raise UpstreamError("github", "pagination link points to an unexpected host")
+    return str(next_link)
 
 
-def _require_repository(repository: str) -> None:
+def require_repository(repository: str) -> None:
     if not REPOSITORY_RE.fullmatch(repository):
         raise ValueError(f"invalid repository: {repository!r}")
 
 
 def _parse_pull(raw: dict[str, Any]) -> CodeChangeRecord:
-    merged_at = _parse(raw.get("merged_at"))
-    closed_at = _parse(raw.get("closed_at"))
+    merged_at = parse_time(raw.get("merged_at"))
+    closed_at = parse_time(raw.get("closed_at"))
     if merged_at is not None:
         state = ChangeState.MERGED
     elif raw.get("state") == "closed":
@@ -109,8 +112,9 @@ def _parse_pull(raw: dict[str, Any]) -> CodeChangeRecord:
         updated_at=datetime.fromisoformat(raw["updated_at"]),
         merged_at=merged_at,
         closed_at=closed_at,
+        body=(raw.get("body") or "")[:MAX_BODY_CHARS],
     )
 
 
-def _parse(value: str | None) -> datetime | None:
+def parse_time(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value) if value else None

@@ -16,7 +16,7 @@ from radar.api.schemas import (
     TrackerCheckOut,
 )
 from radar.db.models import Project
-from radar.ingest.linking import extract_item_keys
+from radar.ingest.linking import extract_item_keys, linking_text
 
 router = APIRouter(prefix="/v1/connect", tags=["connect"])
 
@@ -55,7 +55,14 @@ async def check_code(body: CodeCheck, container: ContainerDep, _: PrincipalDep) 
     changes = await container.connectors.code_host(body.code_host).recent_changes(
         body.repository, CODE_SAMPLE
     )
-    linked = [bool(extract_item_keys(c.title, body.tracker_key)) for c in changes]
+    linked = [
+        bool(
+            extract_item_keys(
+                linking_text(c.title, c.body, body.tracker), body.tracker_key, body.tracker
+            )
+        )
+        for c in changes
+    ]
     return CodeCheckOut(
         repository=body.repository,
         sampled=len(changes),

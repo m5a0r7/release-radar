@@ -7,7 +7,8 @@ from radar.insights.evidence import Evidence
 from radar.narrative.schemas import NarrativeDraft
 
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
-ITEM_KEY_RE = re.compile(r"\b[A-Z][A-Z0-9_]+-\d+\b")
+# Jira keys (KAFKA-123) and GitHub issue numbers (#123).
+ITEM_KEY_RE = re.compile(r"\b[A-Z][A-Z0-9_]+-\d+\b|(?<![\w/&#])#\d+\b")
 VERSION_RE = re.compile(r"\b\d+(?:\.\d+){2,}\b")
 NUMBER_RE = re.compile(r"(?<![\w.])\d+(?:\.\d+)?(?!\w)")
 

@@ -66,8 +66,8 @@ def _out(project: Project, container: Container, tracked: list[TrackedReleaseOut
         code_host=project.code_host,
         repository=project.repository,
         created_at=project.created_at,
-        item_url_template=tracker.item_url_template,
-        search_url_template=tracker.search_url_template,
+        item_url_template=tracker.item_url_template(project.tracker_key),
+        search_url_template=tracker.search_url_template(project.tracker_key),
         tracked_releases=tracked,
     )
 

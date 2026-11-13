@@ -1,6 +1,6 @@
 """Persistence model.
 
-Upstream data is stored in a source-agnostic shape: any work tracker (Jira today) maps to
+Upstream data is stored in a source-agnostic shape: any work tracker (Jira, GitHub Issues) maps to
 `WorkItem` + `WorkItemEvent`, any code host (GitHub today) maps to `CodeChange`. Events are
 append-only history, so membership and status can be reconstructed as of any point in time.
 """
@@ -111,7 +111,7 @@ class Project(Base):
     workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"))
     slug: Mapped[str] = mapped_column(String(64))
     tracker: Mapped[str] = mapped_column(String(32))
-    tracker_key: Mapped[str] = mapped_column(String(32))
+    tracker_key: Mapped[str] = mapped_column(String(140))
     code_host: Mapped[str | None] = mapped_column(String(32))
     repository: Mapped[str | None] = mapped_column(String(140))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
@@ -268,3 +268,4 @@ class Narrative(Base):
     prompt_version: Mapped[str] = mapped_column(String(32))
     payload: Mapped[dict[str, Any]]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+

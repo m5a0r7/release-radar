@@ -77,6 +77,7 @@ class CodeChangeRecord:
     updated_at: datetime
     merged_at: datetime | None
     closed_at: datetime | None
+    body: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,10 +97,17 @@ class RepositoryRecord:
 
 class WorkTracker(Protocol):
     name: str
-    item_url_template: str
-    """Browser URL of an item, with `{key}` as the placeholder."""
-    search_url_template: str
-    """Browser URL listing items, with `{keys}` as a comma-separated placeholder."""
+
+    def item_url_template(self, project_key: str) -> str:
+        """Browser URL of an item, with `{key}` (or `{number}`, its digits) as the placeholder."""
+        ...
+
+    def search_url_template(self, project_key: str) -> str:
+        """Browser URL listing items, with `{keys}` as a comma-separated placeholder.
+
+        Empty when the tracker cannot list arbitrary items in one view.
+        """
+        ...
 
     async def describe_project(self, project_key: str) -> TrackerProjectRecord: ...
 

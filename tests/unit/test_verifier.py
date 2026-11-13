@@ -83,3 +83,14 @@ def test_recommendation_items_must_come_from_evidence() -> None:
     )
 
     assert check(d) == ["recommendation: unknown item KAFKA-2"]
+
+
+def test_github_issue_numbers_are_keys_not_numbers() -> None:
+    evidence = [*EVIDENCE[:1], EVIDENCE[0].model_copy(update={"id": "E4", "keys": ["#42"]})]
+    allowed = {"KAFKA-1", "#42"}
+
+    def run(claim: str) -> list[str]:
+        return verify(draft(claim, ["E1"]), evidence, allowed, DATES, ["4.5.0"])
+
+    assert run("150 items were added, including #42.") == []
+    assert any("#43" in error for error in run("150 items were added, including #43."))

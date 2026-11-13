@@ -108,7 +108,9 @@ class SyncService:
         count = 0
         async for page in code_host.iter_changes(project.repository, since):
             async with transaction(self._sessions) as session:
-                await store.upsert_code_changes(session, project.id, project.tracker_key, page)
+                await store.upsert_code_changes(
+                    session, project.id, project.tracker_key, page, project.tracker
+                )
             count += len(page)
             await on_progress({"stage": "code_changes", "work_items": items, "code_changes": count})
 

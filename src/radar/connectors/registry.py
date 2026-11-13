@@ -3,11 +3,12 @@ import httpx
 from radar.config import Settings
 from radar.connectors.base import CodeHost, WorkTracker
 from radar.connectors.github import GitHubCodeHost
+from radar.connectors.github_issues import GitHubIssuesTracker
 from radar.connectors.http import RetryingFetcher
 from radar.connectors.jira import JiraTracker
 
 USER_AGENT = "release-radar/0.1"
-SUPPORTED_TRACKERS = frozenset({"jira"})
+SUPPORTED_TRACKERS = frozenset({"jira", "github"})
 SUPPORTED_CODE_HOSTS = frozenset({"github"})
 
 
@@ -36,14 +37,17 @@ class Connectors:
             page_size=settings.jira_page_size,
             base_url=str(settings.jira_base_url),
         )
-        self._github = GitHubCodeHost(
-            RetryingFetcher(self._github_client, "github", settings.http_max_retries),
-            api_url=str(settings.github_api_url),
+        github_fetcher = RetryingFetcher(self._github_client, "github", settings.http_max_retries)
+        self._github = GitHubCodeHost(github_fetcher, api_url=str(settings.github_api_url))
+        self._github_issues = GitHubIssuesTracker(
+            github_fetcher, api_url=str(settings.github_api_url)
         )
 
     def tracker(self, name: str) -> WorkTracker:
         if name == "jira":
             return self._jira
+        if name == "github":
+            return self._github_issues
         raise ValueError(f"unsupported tracker: {name}")
 
     def code_host(self, name: str) -> CodeHost:

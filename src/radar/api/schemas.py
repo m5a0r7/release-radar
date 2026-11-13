@@ -1,18 +1,44 @@
+import re
 from datetime import date, datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 REPOSITORY_PATTERN = r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$"
 TRACKER_KEY_PATTERN = r"^[A-Z][A-Z0-9_]{1,31}$"
+TRACKER_KEY_PATTERNS = {"jira": TRACKER_KEY_PATTERN, "github": REPOSITORY_PATTERN}
+Tracker = Literal["jira", "github"]
+TrackerKey = Annotated[
+    str,
+    Field(
+        min_length=2,
+        max_length=140,
+        description="Jira project key (`KAFKA`), or `owner/name` for GitHub Issues.",
+        examples=["KAFKA", "apache/arrow"],
+    ),
+]
 
 
-class ProjectCreate(BaseModel):
+class TrackerKeyed(BaseModel):
+    """Validates `tracker_key` against the format of the chosen tracker."""
+
+    tracker: Tracker = "jira"
+    tracker_key: TrackerKey
+
+    @model_validator(mode="after")
+    def _check_tracker_key(self) -> Self:
+        if not re.fullmatch(TRACKER_KEY_PATTERNS[self.tracker], self.tracker_key):
+            expected = (
+                "an uppercase Jira key like KAFKA" if self.tracker == "jira" else "owner/name"
+            )
+            raise ValueError(f"tracker_key must be {expected}")
+        return self
+
+
+class ProjectCreate(TrackerKeyed):
     model_config = ConfigDict(extra="forbid")
 
     slug: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,63}$", examples=["kafka"])
-    tracker: Literal["jira"] = "jira"
-    tracker_key: str = Field(pattern=TRACKER_KEY_PATTERN, examples=["KAFKA"])
     code_host: Literal["github"] = "github"
     repository: str | None = Field(
         default=None,
@@ -102,11 +128,8 @@ class MeOut(BaseModel):
     workspace: WorkspaceOut
 
 
-class TrackerCheck(BaseModel):
+class TrackerCheck(TrackerKeyed):
     model_config = ConfigDict(extra="forbid")
-
-    tracker: Literal["jira"] = "jira"
-    tracker_key: str = Field(pattern=TRACKER_KEY_PATTERN)
 
 
 class TrackerCheckOut(BaseModel):
@@ -116,12 +139,11 @@ class TrackerCheckOut(BaseModel):
     already_connected_as: str | None = Field(description="Slug, if this workspace tracks it.")
 
 
-class CodeCheck(BaseModel):
+class CodeCheck(TrackerKeyed):
     model_config = ConfigDict(extra="forbid")
 
     code_host: Literal["github"] = "github"
     repository: str = Field(pattern=REPOSITORY_PATTERN)
-    tracker_key: str = Field(pattern=TRACKER_KEY_PATTERN)
 
 
 class SampleChange(BaseModel):

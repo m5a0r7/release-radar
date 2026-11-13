@@ -44,9 +44,13 @@ class JiraTracker:
     def __init__(self, fetcher: RetryingFetcher, page_size: int, base_url: str) -> None:
         self._fetcher = fetcher
         self._page_size = page_size
-        base = base_url.rstrip("/")
-        self.item_url_template = f"{base}/browse/{{key}}"
-        self.search_url_template = f"{base}/issues/?jql=key%20in%20({{keys}})"
+        self._base = base_url.rstrip("/")
+
+    def item_url_template(self, project_key: str) -> str:
+        return f"{self._base}/browse/{{key}}"
+
+    def search_url_template(self, project_key: str) -> str:
+        return f"{self._base}/issues/?jql=key%20in%20({{keys}})"
 
     async def describe_project(self, project_key: str) -> TrackerProjectRecord:
         _require(PROJECT_KEY_RE, project_key, "project key")

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from radar.connectors.base import CodeChangeRecord, ReleaseRecord, WorkItemRecord
 from radar.db.models import CodeChange, Release, SyncCursor, WorkItem, WorkItemEvent
-from radar.ingest.linking import extract_item_keys
+from radar.ingest.linking import extract_item_keys, linking_text
 
 EVENT_BATCH = 1000
 
@@ -110,6 +110,7 @@ async def upsert_code_changes(
     project_id: int,
     project_key: str,
     records: Sequence[CodeChangeRecord],
+    tracker: str = "jira",
 ) -> None:
     if not records:
         return
@@ -123,7 +124,9 @@ async def upsert_code_changes(
                 "author": r.author,
                 "state": r.state.value,
                 "url": r.url,
-                "linked_keys": extract_item_keys(r.title, project_key),
+                "linked_keys": extract_item_keys(
+                    linking_text(r.title, r.body, tracker), project_key, tracker
+                ),
                 "created_at": r.created_at,
                 "updated_at": r.updated_at,
                 "merged_at": r.merged_at,
