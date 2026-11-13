@@ -11,6 +11,7 @@ import {
 
 import type { DriftReport } from '../../api/client'
 import { shortDate } from '../../lib/format'
+import { trackerLabel } from '../../lib/tracker'
 import { Card, CardTitle } from '../ui'
 
 const DAY_MS = 86_400_000
@@ -22,10 +23,12 @@ const axisTick = { fontSize: 11, fill: 'var(--chart-axis)' }
 export function BurnupChart({
   report,
   trackerKey,
+  tracker,
   highlighted,
 }: {
   report: DriftReport
   trackerKey: string
+  tracker: string
   highlighted: boolean
 }) {
   const points = report.burnup.map((p) => ({ t: toTime(p.at), scope: p.scope, done: p.done }))
@@ -52,7 +55,9 @@ export function BurnupChart({
           )}
         </div>
       </div>
-      <p className="mt-0.5 text-xs text-zinc-400">Tickets, weekly · source: Jira {trackerKey}</p>
+      <p className="mt-0.5 text-xs text-zinc-400">
+        Tickets, weekly · source: {trackerLabel(tracker, trackerKey)}
+      </p>
       {points.length < 2 ? (
         <p className="mt-6 text-sm text-zinc-500">Not enough history in this period.</p>
       ) : (

@@ -5,6 +5,7 @@ import type { DriftReport } from '../../api/client'
 import { useSetTargetDate } from '../../api/hooks'
 import { cn } from '../../lib/cn'
 import { shortDate, STATUS_STYLES } from '../../lib/format'
+import { trackerName } from '../../lib/tracker'
 import { detail, headline } from '../../lib/verdict'
 import { Button, ErrorNotice, Pill } from '../ui'
 
@@ -12,11 +13,13 @@ export function Verdict({
   report,
   slug,
   storedTarget,
+  tracker,
   highlighted,
   onExplain,
 }: {
   report: DriftReport
   slug: string
+  tracker: string
   storedTarget: string | null | undefined
   highlighted: boolean
   onExplain: () => void
@@ -45,6 +48,7 @@ export function Verdict({
               slug={slug}
               release={report.release.name}
               value={storedTarget ?? ''}
+              tracker={tracker}
               onClose={() => setEditing(false)}
             />
           ) : (
@@ -54,7 +58,7 @@ export function Verdict({
               onClick={() => setEditing(true)}
             >
               {report.release.target_date
-                ? `target ${shortDate(report.release.target_date)}${storedTarget ? '' : ' (from Jira)'}`
+                ? `target ${shortDate(report.release.target_date)}${storedTarget ? '' : ` (from ${trackerName(tracker)})`}`
                 : 'Set a target date'}
             </button>
           )}
@@ -74,11 +78,13 @@ function TargetEditor({
   slug,
   release,
   value,
+  tracker,
   onClose,
 }: {
   slug: string
   release: string
   value: string
+  tracker: string
   onClose: () => void
 }) {
   const [draft, setDraft] = useState(value)
@@ -101,7 +107,7 @@ function TargetEditor({
       </Button>
       {value && (
         <Button size="sm" variant="ghost" disabled={save.isPending} onClick={() => submit(null)}>
-          Use Jira date
+          Use {tracker === 'github' ? 'milestone' : 'Jira'} date
         </Button>
       )}
       <Button size="sm" variant="ghost" onClick={onClose}>

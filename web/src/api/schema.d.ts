@@ -417,6 +417,19 @@ export interface components {
         /** CodeCheck */
         CodeCheck: {
             /**
+             * Tracker
+             * @default jira
+             * @enum {string}
+             */
+            tracker: "jira" | "github";
+            /**
+             * Tracker Key
+             * @description Jira project key (`KAFKA`), or `owner/name` for GitHub Issues.
+             * @example KAFKA
+             * @example apache/arrow
+             */
+            tracker_key: string;
+            /**
              * Code Host
              * @default github
              * @constant
@@ -424,8 +437,6 @@ export interface components {
             code_host: "github";
             /** Repository */
             repository: string;
-            /** Tracker Key */
-            tracker_key: string;
         };
         /** CodeCheckOut */
         CodeCheckOut: {
@@ -689,21 +700,23 @@ export interface components {
         /** ProjectCreate */
         ProjectCreate: {
             /**
+             * Tracker
+             * @default jira
+             * @enum {string}
+             */
+            tracker: "jira" | "github";
+            /**
+             * Tracker Key
+             * @description Jira project key (`KAFKA`), or `owner/name` for GitHub Issues.
+             * @example KAFKA
+             * @example apache/arrow
+             */
+            tracker_key: string;
+            /**
              * Slug
              * @example kafka
              */
             slug: string;
-            /**
-             * Tracker
-             * @default jira
-             * @constant
-             */
-            tracker: "jira";
-            /**
-             * Tracker Key
-             * @example KAFKA
-             */
-            tracker_key: string;
             /**
              * Code Host
              * @default github
@@ -874,10 +887,15 @@ export interface components {
             /**
              * Tracker
              * @default jira
-             * @constant
+             * @enum {string}
              */
-            tracker: "jira";
-            /** Tracker Key */
+            tracker: "jira" | "github";
+            /**
+             * Tracker Key
+             * @description Jira project key (`KAFKA`), or `owner/name` for GitHub Issues.
+             * @example KAFKA
+             * @example apache/arrow
+             */
             tracker_key: string;
         };
         /** TrackerCheckOut */
@@ -1569,6 +1587,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description The workspace is out of AI budget; see Retry-After. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

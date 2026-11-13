@@ -8,6 +8,7 @@ import { Crumb, PageHeader } from '../components/AppShell'
 import { buttonClass } from '../components/styles'
 import { Button, Card, ErrorNotice, GitHubIcon, Pill, Spinner } from '../components/ui'
 import { count, relativeTime, STATUS_STYLES, worstStatus } from '../lib/format'
+import { trackerLabel } from '../lib/tracker'
 import { useQueryClient } from '@tanstack/react-query'
 
 const ACTIVE = new Set(['queued', 'running'])
@@ -24,8 +25,8 @@ export function ProjectsPage() {
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Projects</h1>
               <p className="mt-1 text-sm text-zinc-500">
-                Each project links a Jira project to the GitHub repository whose pull requests
-                reference its tickets.
+                Each project links a Jira project or GitHub repository&rsquo;s issues to the
+                repository whose pull requests reference them.
               </p>
             </div>
             <Link to="/projects/new" className={buttonClass('primary')}>
@@ -105,7 +106,9 @@ function ProjectRow({ project }: { project: Project }) {
         <Link to={`/p/${project.slug}`} className="font-medium hover:underline">
           {project.slug}
         </Link>
-        <p className="text-xs text-zinc-500">Jira · {project.tracker_key}</p>
+        <p className="text-xs text-zinc-500">
+          {trackerLabel(project.tracker, project.tracker_key)}
+        </p>
       </td>
       <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
         {project.repository ? (
@@ -114,7 +117,7 @@ function ProjectRow({ project }: { project: Project }) {
             {project.repository}
           </span>
         ) : (
-          <span className="text-zinc-400">Jira only</span>
+          <span className="text-zinc-400">Issues only</span>
         )}
       </td>
       <td className="num px-4 py-3 text-zinc-600 dark:text-zinc-400">
@@ -175,8 +178,8 @@ function EmptyState() {
     <Card className="flex flex-col items-center px-6 py-14 text-center">
       <h2 className="text-sm font-semibold">No projects yet</h2>
       <p className="mt-1 max-w-sm text-sm text-zinc-500">
-        Connect a Jira project and, optionally, the GitHub repository that implements it. The first
-        sync takes a minute or two.
+        Connect a Jira project or a GitHub repository&rsquo;s issues and, optionally, the repository
+        that implements them. The first sync takes a minute or two.
       </p>
       <Link to="/projects/new" className={buttonClass('primary', 'md', 'mt-5')}>
         <Plus className="size-4" />

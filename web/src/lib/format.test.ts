@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   daysBefore,
   itemUrl,
+  searchUrl,
   percent,
   periodProblem,
   presetRange,
@@ -38,6 +39,13 @@ describe('format', () => {
     expect(itemUrl('https://jira.test/browse/{key}', 'a/../b')).toBe(
       'https://jira.test/browse/a%2F..%2Fb',
     )
+    expect(itemUrl('https://github.com/acme/w/issues/{number}', '#12')).toBe(
+      'https://github.com/acme/w/issues/12',
+    )
+  })
+
+  it('has no search link for trackers without one', () => {
+    expect(searchUrl('', ['#1', '#2'])).toBe('')
   })
 
   it('maps evidence metrics to dashboard sections', () => {

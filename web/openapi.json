@@ -994,6 +994,9 @@
               }
             }
           },
+          "429": {
+            "description": "The workspace is out of AI budget; see Retry-After."
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1112,6 +1115,26 @@
       },
       "CodeCheck": {
         "properties": {
+          "tracker": {
+            "type": "string",
+            "enum": [
+              "jira",
+              "github"
+            ],
+            "title": "Tracker",
+            "default": "jira"
+          },
+          "tracker_key": {
+            "type": "string",
+            "maxLength": 140,
+            "minLength": 2,
+            "title": "Tracker Key",
+            "description": "Jira project key (`KAFKA`), or `owner/name` for GitHub Issues.",
+            "examples": [
+              "KAFKA",
+              "apache/arrow"
+            ]
+          },
           "code_host": {
             "type": "string",
             "const": "github",
@@ -1122,18 +1145,13 @@
             "type": "string",
             "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$",
             "title": "Repository"
-          },
-          "tracker_key": {
-            "type": "string",
-            "pattern": "^[A-Z][A-Z0-9_]{1,31}$",
-            "title": "Tracker Key"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "repository",
-          "tracker_key"
+          "tracker_key",
+          "repository"
         ],
         "title": "CodeCheck"
       },
@@ -1933,26 +1951,32 @@
       },
       "ProjectCreate": {
         "properties": {
+          "tracker": {
+            "type": "string",
+            "enum": [
+              "jira",
+              "github"
+            ],
+            "title": "Tracker",
+            "default": "jira"
+          },
+          "tracker_key": {
+            "type": "string",
+            "maxLength": 140,
+            "minLength": 2,
+            "title": "Tracker Key",
+            "description": "Jira project key (`KAFKA`), or `owner/name` for GitHub Issues.",
+            "examples": [
+              "KAFKA",
+              "apache/arrow"
+            ]
+          },
           "slug": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
             "title": "Slug",
             "examples": [
               "kafka"
-            ]
-          },
-          "tracker": {
-            "type": "string",
-            "const": "jira",
-            "title": "Tracker",
-            "default": "jira"
-          },
-          "tracker_key": {
-            "type": "string",
-            "pattern": "^[A-Z][A-Z0-9_]{1,31}$",
-            "title": "Tracker Key",
-            "examples": [
-              "KAFKA"
             ]
           },
           "code_host": {
@@ -1981,8 +2005,8 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "slug",
-          "tracker_key"
+          "tracker_key",
+          "slug"
         ],
         "title": "ProjectCreate"
       },
@@ -2441,14 +2465,23 @@
         "properties": {
           "tracker": {
             "type": "string",
-            "const": "jira",
+            "enum": [
+              "jira",
+              "github"
+            ],
             "title": "Tracker",
             "default": "jira"
           },
           "tracker_key": {
             "type": "string",
-            "pattern": "^[A-Z][A-Z0-9_]{1,31}$",
-            "title": "Tracker Key"
+            "maxLength": 140,
+            "minLength": 2,
+            "title": "Tracker Key",
+            "description": "Jira project key (`KAFKA`), or `owner/name` for GitHub Issues.",
+            "examples": [
+              "KAFKA",
+              "apache/arrow"
+            ]
           }
         },
         "additionalProperties": false,

@@ -8,6 +8,7 @@ import {
 import { useState } from 'react'
 
 import { isoDate, presetRange } from '../lib/format'
+import type { TrackerKind } from '../lib/tracker'
 import { api, ApiError, unwrap, type Job, type Me, type Problem } from './client'
 
 export type Period = { from: string; to: string }
@@ -77,8 +78,12 @@ export function useProjects() {
 export function useCreateProject() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: (body: { slug: string; tracker_key: string; repository?: string }) =>
-      unwrap(api.POST('/v1/projects', { body: { tracker: 'jira', code_host: 'github', ...body } })),
+    mutationFn: (body: {
+      slug: string
+      tracker: TrackerKind
+      tracker_key: string
+      repository?: string
+    }) => unwrap(api.POST('/v1/projects', { body: { code_host: 'github', ...body } })),
     onSuccess: () => client.invalidateQueries({ queryKey: ['projects'] }),
   })
 }
@@ -240,16 +245,14 @@ export function isActive(job: Job | undefined): boolean {
 
 export function useTrackerCheck() {
   return useMutation({
-    mutationFn: (trackerKey: string) =>
-      unwrap(
-        api.POST('/v1/connect/tracker', { body: { tracker: 'jira', tracker_key: trackerKey } }),
-      ),
+    mutationFn: (body: { tracker: TrackerKind; tracker_key: string }) =>
+      unwrap(api.POST('/v1/connect/tracker', { body })),
   })
 }
 
 export function useCodeCheck() {
   return useMutation({
-    mutationFn: (body: { repository: string; tracker_key: string }) =>
+    mutationFn: (body: { repository: string; tracker: TrackerKind; tracker_key: string }) =>
       unwrap(api.POST('/v1/connect/code', { body: { code_host: 'github', ...body } })),
   })
 }

@@ -166,12 +166,14 @@ function Dashboard({ project, release }: { project: Project; release: string }) 
                 report={drift.data}
                 slug={project.slug}
                 storedTarget={stored?.target_date}
+                tracker={project.tracker}
                 highlighted={highlighted === 'forecast'}
                 onExplain={requestExplanation}
               />
               <KpiTiles
                 report={drift.data}
                 searchTemplate={project.search_url_template}
+                tracker={project.tracker}
                 highlighted={highlighted}
               />
               <section className="grid gap-4 xl:grid-cols-5">
@@ -185,6 +187,7 @@ function Dashboard({ project, release }: { project: Project; release: string }) 
                   <BurnupChart
                     report={drift.data}
                     trackerKey={project.tracker_key}
+                    tracker={project.tracker}
                     highlighted={highlighted === 'throughput'}
                   />
                 </Suspense>
@@ -192,6 +195,7 @@ function Dashboard({ project, release }: { project: Project; release: string }) 
                   report={drift.data}
                   itemTemplate={project.item_url_template}
                   searchTemplate={project.search_url_template}
+                  tracker={project.tracker}
                   highlighted={highlighted === 'code'}
                 />
               </section>
@@ -204,6 +208,7 @@ function Dashboard({ project, release }: { project: Project; release: string }) 
                 onEvidence={highlight}
                 itemUrlTemplate={project.item_url_template}
                 searchUrlTemplate={project.search_url_template}
+                tracker={project.tracker}
               />
             </>
           )}

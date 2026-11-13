@@ -1,5 +1,6 @@
 import type { DriftReport } from '../../api/client'
 import { itemUrl, percent, searchUrl } from '../../lib/format'
+import { trackerName } from '../../lib/tracker'
 import { Card, CardTitle } from '../ui'
 
 const SHOWN = 6
@@ -8,15 +9,22 @@ export function AttentionCard({
   report,
   itemTemplate,
   searchTemplate,
+  tracker,
   highlighted,
 }: {
   report: DriftReport
   itemTemplate: string
   searchTemplate: string
+  tracker: string
   highlighted: boolean
 }) {
   const { attention, code } = report
   const shown = attention.items.slice(0, SHOWN)
+  const name = trackerName(tracker)
+  const viewAll = searchUrl(
+    searchTemplate,
+    attention.items.map((i) => i.key),
+  )
 
   return (
     <Card
@@ -49,7 +57,9 @@ export function AttentionCard({
                     {item.key}
                   </a>
                   <span className="shrink-0">
-                    {item.reason === 'merged_not_resolved' ? 'Done in code, open in Jira' : 'Idle'}
+                    {item.reason === 'merged_not_resolved'
+                      ? `Done in code, open in ${name}`
+                      : 'Idle'}
                   </span>
                 </p>
                 {item.title && (
@@ -68,19 +78,16 @@ export function AttentionCard({
         </ul>
       )}
       <div className="mt-auto flex items-center justify-between gap-3 pt-4 text-xs">
-        {attention.items.length > 0 ? (
+        {attention.items.length > 0 && viewAll ? (
           <a
-            href={searchUrl(
-              searchTemplate,
-              attention.items.map((i) => i.key),
-            )}
+            href={viewAll}
             target="_blank"
             rel="noreferrer noopener"
             className="font-medium text-blue-600 hover:underline dark:text-blue-400"
           >
             {attention.total > attention.items.length
-              ? `View top ${attention.items.length} in Jira`
-              : `View all ${attention.total} in Jira`}{' '}
+              ? `View top ${attention.items.length} in ${name}`
+              : `View all ${attention.total} in ${name}`}{' '}
             →
           </a>
         ) : (

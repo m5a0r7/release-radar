@@ -2,6 +2,7 @@ import { Sparkles } from 'lucide-react'
 
 import type { Evidence, Narrative } from '../api/client'
 import { percent, searchUrl, sectionOf } from '../lib/format'
+import { trackerName } from '../lib/tracker'
 import { ItemLinks } from './ItemLinks'
 import { buttonClass } from './styles'
 import { Button, Card, CardTitle, ErrorNotice, Spinner } from './ui'
@@ -15,6 +16,7 @@ type Props = {
   onEvidence: (section: string) => void
   itemUrlTemplate: string
   searchUrlTemplate: string
+  tracker: string
 }
 
 export function NarrativePanel(props: Props) {
@@ -64,8 +66,10 @@ function NarrativeBody({
   onEvidence,
   itemUrlTemplate,
   searchUrlTemplate,
+  tracker,
 }: Props & { narrative: Narrative }) {
   const recommendation = narrative.recommendation
+  const review = recommendation ? searchUrl(searchUrlTemplate, recommendation.item_keys) : ''
   return (
     <div className="mt-4">
       <p className="text-sm text-zinc-700 dark:text-zinc-300">{narrative.summary}</p>
@@ -102,14 +106,14 @@ function NarrativeBody({
             <ItemLinks keys={recommendation.item_keys} template={itemUrlTemplate} />
             <EvidenceChips evidence={recommendation.evidence} onSelect={onEvidence} />
           </div>
-          {recommendation.item_keys.length > 0 && (
+          {recommendation.item_keys.length > 0 && review && (
             <a
-              href={searchUrl(searchUrlTemplate, recommendation.item_keys)}
+              href={review}
               target="_blank"
               rel="noreferrer noopener"
               className={buttonClass('primary')}
             >
-              Review in Jira
+              Review in {trackerName(tracker)}
             </a>
           )}
         </div>

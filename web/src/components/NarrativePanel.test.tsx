@@ -55,6 +55,7 @@ describe('NarrativePanel', () => {
         onEvidence={onEvidence}
         itemUrlTemplate="https://jira.test/browse/{key}"
         searchUrlTemplate="https://jira.test/issues/?jql=key%20in%20({keys})"
+        tracker="jira"
       />,
     )
 
@@ -78,6 +79,7 @@ describe('NarrativePanel', () => {
         onEvidence={() => {}}
         itemUrlTemplate=""
         searchUrlTemplate=""
+        tracker="jira"
       />,
     )
 

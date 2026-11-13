@@ -41,12 +41,17 @@ export function periodProblem(from: string, to: string): string | null {
   return null
 }
 
+/** Jira templates take `{key}` (KAFKA-1); GitHub Issues take `{number}` (from #12). */
 export function itemUrl(template: string, key: string): string {
-  return template.replace('{key}', encodeURIComponent(key))
+  return template
+    .replace('{key}', encodeURIComponent(key))
+    .replace('{number}', encodeURIComponent(key.replace(/^#/, '')))
 }
 
-/** A tracker search listing these items, e.g. a Jira JQL `key in (...)` query. */
+/** A tracker search listing these items, e.g. a Jira JQL `key in (...)` query; '' if the
+ * tracker has none (GitHub Issues). */
 export function searchUrl(template: string, keys: string[]): string {
+  if (!template) return ''
   return template.replace('{keys}', encodeURIComponent(keys.join(',')))
 }
 

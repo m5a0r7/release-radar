@@ -4,12 +4,19 @@ import type { ReactNode } from 'react'
 import type { DriftReport } from '../../api/client'
 import { cn } from '../../lib/cn'
 import { percent, searchUrl, signedPercent } from '../../lib/format'
+import { trackerName } from '../../lib/tracker'
 import { Card } from '../ui'
 
-type Props = { report: DriftReport; searchTemplate: string; highlighted: string | null }
+type Props = {
+  report: DriftReport
+  searchTemplate: string
+  tracker: string
+  highlighted: string | null
+}
 
-export function KpiTiles({ report, searchTemplate, highlighted }: Props) {
+export function KpiTiles({ report, searchTemplate, tracker, highlighted }: Props) {
   const { scope, planning, idle, progress, burnup, throughput } = report
+  const drillLabel = `View in ${trackerName(tracker)} →`
   const resolvedDelta = progress.completed_in_period - progress.completed_previous_period
 
   return (
@@ -17,6 +24,7 @@ export function KpiTiles({ report, searchTemplate, highlighted }: Props) {
       <Tile
         sections={['scope']}
         highlighted={highlighted}
+        drillLabel={drillLabel}
         label="Scope change"
         value={signedPercent(scope.change_pct)}
         chart={<Sparkline values={burnup.map((p) => p.scope)} />}
@@ -27,6 +35,7 @@ export function KpiTiles({ report, searchTemplate, highlighted }: Props) {
       <Tile
         sections={['planning']}
         highlighted={highlighted}
+        drillLabel={drillLabel}
         label="Unplanned work"
         value={percent(planning.unplanned_share)}
         chart={<Meter share={planning.unplanned_share} />}
@@ -38,6 +47,7 @@ export function KpiTiles({ report, searchTemplate, highlighted }: Props) {
       <Tile
         sections={['idle']}
         highlighted={highlighted}
+        drillLabel={drillLabel}
         label="Idle tickets"
         value={String(idle.idle_items)}
         chart={<Meter share={idle.idle_share} />}
@@ -47,6 +57,7 @@ export function KpiTiles({ report, searchTemplate, highlighted }: Props) {
       <Tile
         sections={['progress', 'throughput']}
         highlighted={highlighted}
+        drillLabel={drillLabel}
         label="Resolved"
         value={String(progress.completed_in_period)}
         chart={<Sparkline values={throughput.weekly.map((w) => w.completed)} />}
@@ -66,6 +77,7 @@ function Tile({
   delta,
   foot,
   drill,
+  drillLabel,
 }: {
   sections: string[]
   highlighted: string | null
@@ -75,6 +87,7 @@ function Tile({
   delta?: ReactNode
   foot: string
   drill?: string
+  drillLabel: string
 }) {
   return (
     <Card
@@ -98,7 +111,7 @@ function Tile({
           rel="noreferrer noopener"
           className="mt-auto pt-2 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
         >
-          View in Jira →
+          {drillLabel}
         </a>
       )}
     </Card>

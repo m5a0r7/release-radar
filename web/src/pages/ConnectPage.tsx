@@ -2,7 +2,7 @@ import { AlertTriangle, Check, Search } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 
-import type { CodeCheck, TrackerCheck } from '../api/client'
+import type { CodeCheck, TrackerCheck as TrackerCheckOut } from '../api/client'
 import {
   startSync,
   useCodeCheck,
@@ -17,10 +17,18 @@ import { Button, Card, ErrorNotice, Field, Input, Spinner } from '../components/
 import { cn } from '../lib/cn'
 import { percent } from '../lib/format'
 import { defaultRelease, releasePath } from '../lib/routes'
+import { trackerName, type TrackerKind } from '../lib/tracker'
 
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
 /** Below this share of PRs mentioning a ticket, code metrics say little. */
 const WEAK_LINKING = 0.2
+
+type TrackerCheck = TrackerCheckOut & { tracker: TrackerKind }
+
+const TRACKER_OPTIONS: { value: TrackerKind; label: string }[] = [
+  { value: 'jira', label: 'Jira' },
+  { value: 'github', label: 'GitHub Issues' },
+]
 
 type Step = 1 | 2 | 3
 
@@ -44,7 +52,7 @@ export function ConnectPage() {
           <h1 className="text-xl font-semibold tracking-tight">Connect a project</h1>
           <ol className="mt-5 flex items-center gap-3">
             <StepLabel n={1} current={step}>
-              Jira project
+              Plan
             </StepLabel>
             <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
             <StepLabel n={2} current={step}>
@@ -60,7 +68,8 @@ export function ConnectPage() {
               <TrackerStep
                 initial={tracker}
                 onDone={(checked) => {
-                  if (checked.key !== tracker?.key) setCode(undefined)
+                  if (checked.key !== tracker?.key || checked.tracker !== tracker?.tracker)
+                    setCode(undefined)
                   setTracker(checked)
                   setStep(2)
                 }}
@@ -129,34 +138,90 @@ function TrackerStep({
   initial?: TrackerCheck
   onDone: (checked: TrackerCheck) => void
 }) {
+  const [kind, setKind] = useState<TrackerKind>(initial?.tracker ?? 'jira')
   const [key, setKey] = useState(initial?.key ?? '')
   const check = useTrackerCheck()
-  const result = check.data?.key === key ? check.data : initial?.key === key ? initial : undefined
+  const checked = check.data && check.variables?.tracker === kind ? check.data : undefined
+  const result: TrackerCheck | undefined =
+    checked?.key.toLowerCase() === key.toLowerCase()
+      ? { ...checked, tracker: kind }
+      : initial?.tracker === kind && initial.key === key
+        ? initial
+        : undefined
+  const github = kind === 'github'
+  const valid = github ? REPOSITORY.test(key) : key.length >= 2
 
   function submit(event: FormEvent) {
     event.preventDefault()
     if (result && !result.already_connected_as) onDone(result)
-    else check.mutate(key)
+    else check.mutate({ tracker: kind, tracker_key: key })
+  }
+
+  function choose(next: TrackerKind) {
+    setKind(next)
+    setKey('')
+    check.reset()
   }
 
   return (
     <form onSubmit={submit}>
-      <h2 className="text-sm font-semibold">Which Jira project plans the release?</h2>
-      <p className="mt-1 text-sm text-zinc-500">
-        The project key is the prefix of its ticket numbers, like <code>KAFKA</code> in KAFKA-1234.
+      <h2 className="text-sm font-semibold">Where is the release planned?</h2>
+      <div
+        role="radiogroup"
+        aria-label="Tracker"
+        className="mt-3 inline-flex rounded-md border border-zinc-200 p-0.5 dark:border-zinc-800"
+      >
+        {TRACKER_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={kind === option.value}
+            onClick={() => choose(option.value)}
+            className={cn(
+              'rounded px-3 py-1 text-sm',
+              kind === option.value
+                ? 'bg-zinc-900 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900'
+                : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100',
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-3 text-sm text-zinc-500">
+        {github ? (
+          <>
+            Milestones are releases and the issues in a milestone are its scope. Use the
+            repository&rsquo;s <span className="font-mono text-xs">owner/name</span>.
+          </>
+        ) : (
+          <>
+            The project key is the prefix of its ticket numbers, like <code>KAFKA</code> in
+            KAFKA-1234.
+          </>
+        )}
       </p>
       <div className="mt-4">
-        <Field label="Project key">
+        <Field label={github ? 'Repository' : 'Project key'}>
           <Input
             value={key}
-            onChange={(e) => setKey(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
-            placeholder="KAFKA"
+            onChange={(e) =>
+              setKey(
+                github
+                  ? e.target.value.trim()
+                  : e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''),
+              )
+            }
+            placeholder={github ? 'apache/arrow' : 'KAFKA'}
             autoFocus
-            maxLength={20}
+            maxLength={github ? 140 : 20}
           />
         </Field>
       </div>
-      {check.isPending && <Spinner label="Looking up the project in Jira…" className="mt-4" />}
+      {check.isPending && (
+        <Spinner label={`Looking up the project in ${trackerName(kind)}…`} className="mt-4" />
+      )}
       {check.error && (
         <div className="mt-4">
           <ErrorNotice error={check.error} />
@@ -164,8 +229,9 @@ function TrackerStep({
       )}
       {result && (
         <div className="mt-4 space-y-3">
-          <Summary label="Jira">
-            {result.name} · {result.key} · {result.upcoming_releases.length} upcoming releases
+          <Summary label={trackerName(kind)}>
+            {github ? result.key : `${result.name} · ${result.key}`} ·{' '}
+            {result.upcoming_releases.length} upcoming {github ? 'milestones' : 'releases'}
           </Summary>
           {result.already_connected_as && (
             <p className="text-sm text-amber-700 dark:text-amber-400">
@@ -184,12 +250,20 @@ function TrackerStep({
         </Link>
         <Button
           type="submit"
-          disabled={key.length < 2 || check.isPending || !!result?.already_connected_as}
+          disabled={!valid || check.isPending || !!result?.already_connected_as}
         >
           {result ? 'Continue' : 'Check project'}
         </Button>
       </div>
     </form>
+  )
+}
+
+function TrackerSummary({ tracker }: { tracker: TrackerCheck }) {
+  return (
+    <Summary label={trackerName(tracker.tracker)}>
+      {tracker.tracker === 'github' ? tracker.key : `${tracker.name} · ${tracker.key}`}
+    </Summary>
   )
 }
 
@@ -213,16 +287,24 @@ function CodeStep({
   onBack: () => void
   onDone: (checked: CodeCheck | null) => void
 }) {
-  const [query, setQuery] = useState(initial?.repository ?? '')
+  const github = tracker.tracker === 'github'
+  const [query, setQuery] = useState(initial?.repository ?? (github ? tracker.key : ''))
   const search = useRepositorySearch(useDebounced(query.trim(), 300))
   const check = useCodeCheck()
   const result = check.data ?? initial ?? undefined
   const typed = query.trim()
+  const { mutate } = check
 
   function choose(repository: string) {
     setQuery(repository)
-    check.mutate({ repository, tracker_key: tracker.key })
+    mutate({ repository, tracker: tracker.tracker, tracker_key: tracker.key })
   }
+
+  // Issues and pull requests usually live in the same repository; check it straight away.
+  useEffect(() => {
+    if (github && initial === undefined)
+      mutate({ repository: tracker.key, tracker: 'github', tracker_key: tracker.key })
+  }, [github, initial, mutate, tracker.key])
 
   const options = search.data ?? []
   const offerTyped =
@@ -231,14 +313,20 @@ function CodeStep({
 
   return (
     <div>
-      <Summary label="Jira">
-        {tracker.name} · {tracker.key} · {tracker.upcoming_releases.length} upcoming releases
-      </Summary>
-      <h2 className="mt-6 text-sm font-semibold">Which repository implements these tickets?</h2>
+      <TrackerSummary tracker={tracker} />
+      <h2 className="mt-6 text-sm font-semibold">
+        Which repository implements these {github ? 'issues' : 'tickets'}?
+      </h2>
       <p className="mt-1 text-sm text-zinc-500">
         Search public GitHub repositories or paste{' '}
-        <span className="font-mono text-xs">owner/name</span>. Its pull requests should mention{' '}
-        {tracker.key} tickets.
+        <span className="font-mono text-xs">owner/name</span>.{' '}
+        {github ? (
+          <>
+            Its pull requests should reference issues, like <code>Fixes #123</code>.
+          </>
+        ) : (
+          <>Its pull requests should mention {tracker.key} tickets.</>
+        )}
       </p>
       <div className="relative mt-3">
         <Search
@@ -291,7 +379,7 @@ function CodeStep({
           <ErrorNotice error={check.error} />
         </div>
       )}
-      {result && !check.isPending && <LinkingResult result={result} trackerKey={tracker.key} />}
+      {result && !check.isPending && <LinkingResult result={result} tracker={tracker} />}
 
       <div className="mt-6 flex items-center justify-between">
         <Button variant="secondary" onClick={onBack}>
@@ -299,7 +387,7 @@ function CodeStep({
         </Button>
         <div className="flex gap-2">
           <Button variant="ghost" onClick={() => onDone(null)}>
-            Skip, Jira only
+            Skip, {github ? 'issues' : 'Jira'} only
           </Button>
           <Button disabled={!result || check.isPending} onClick={() => result && onDone(result)}>
             Continue
@@ -341,8 +429,10 @@ function RepoOption({
   )
 }
 
-function LinkingResult({ result, trackerKey }: { result: CodeCheck; trackerKey: string }) {
+function LinkingResult({ result, tracker }: { result: CodeCheck; tracker: TrackerCheck }) {
   const share = result.linked_share ?? 0
+  const ticket = tracker.tracker === 'github' ? 'an issue' : `a ${tracker.key} ticket`
+  const name = trackerName(tracker.tracker)
   const good = result.sampled > 0 && share >= WEAK_LINKING
   return (
     <div
@@ -364,13 +454,13 @@ function LinkingResult({ result, trackerKey }: { result: CodeCheck; trackerKey: 
         {result.sampled === 0
           ? `${result.repository} has no pull requests yet`
           : good
-            ? `Linking works: ${result.linked} of the last ${result.sampled} pull requests mention a ${trackerKey} ticket`
-            : `Only ${result.linked} of the last ${result.sampled} pull requests (${percent(share)}) mention a ${trackerKey} ticket`}
+            ? `Linking works: ${result.linked} of the last ${result.sampled} pull requests reference ${ticket}`
+            : `Only ${result.linked} of the last ${result.sampled} pull requests (${percent(share)}) reference ${ticket}`}
       </p>
       <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
         {good
-          ? 'Code metrics (done in code but open in Jira, PRs without a ticket) will be available.'
-          : 'Code metrics will be sparse. Check the repository, or continue with Jira only.'}
+          ? `Code metrics (done in code but open in ${name}, PRs without a ticket) will be available.`
+          : `Code metrics will be sparse. Check the repository, or continue with ${name} only.`}
       </p>
       {result.samples.length > 0 && (
         <ul className="mt-3 space-y-1">
@@ -401,7 +491,7 @@ function LinkingResult({ result, trackerKey }: { result: CodeCheck; trackerKey: 
 
 function slugFor(key: string): string {
   return (
-    key
+    (key.split('/').pop() ?? key)
       .toLowerCase()
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/^-+/, '')
@@ -440,6 +530,7 @@ function ReleaseStep({
       if (created !== slug) {
         await create.mutateAsync({
           slug,
+          tracker: tracker.tracker,
           tracker_key: tracker.key,
           ...(code ? { repository: code.repository } : {}),
         })
@@ -461,10 +552,8 @@ function ReleaseStep({
   return (
     <form onSubmit={submit} className="space-y-5">
       <div className="space-y-2">
-        <Summary label="Jira">
-          {tracker.name} · {tracker.key}
-        </Summary>
-        <Summary label="Code">{code ? code.repository : 'Jira only'}</Summary>
+        <TrackerSummary tracker={tracker} />
+        <Summary label="Code">{code ? code.repository : 'Not connected'}</Summary>
       </div>
       <Field
         label="Release to track"
@@ -484,14 +573,16 @@ function ReleaseStep({
           </select>
         ) : (
           <p className="text-sm text-zinc-500">
-            {tracker.key} has no upcoming releases in Jira, so there is nothing to forecast yet.
+            {tracker.key} has no upcoming{' '}
+            {tracker.tracker === 'github' ? 'milestones' : 'releases in Jira'}, so there is nothing
+            to forecast yet.
           </p>
         )}
       </Field>
       {releases.length > 0 && (
         <Field
           label="Target date (optional)"
-          hint="When you need it to ship. Leave empty to use the release date set in Jira."
+          hint={`When you need it to ship. Leave empty to use the ${tracker.tracker === 'github' ? 'milestone due date' : 'release date set in Jira'}.`}
         >
           <Input type="date" value={target} onChange={(e) => setTarget(e.target.value)} />
         </Field>
