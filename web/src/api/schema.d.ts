@@ -400,6 +400,11 @@ export interface components {
             github: boolean;
             /** Demo */
             demo: boolean;
+            /**
+             * Demo Until
+             * @description Last day of a time-boxed public demo.
+             */
+            demo_until: string | null;
         };
         /** BurnupPoint */
         BurnupPoint: {

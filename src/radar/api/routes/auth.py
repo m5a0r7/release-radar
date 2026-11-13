@@ -3,7 +3,7 @@ import binascii
 import hmac
 import re
 import secrets
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from urllib.parse import urlencode
 
@@ -37,7 +37,12 @@ DEMO = ExternalIdentity(
 async def auth_config(container: ContainerDep) -> AuthConfigOut:
     """Which sign-in methods the server offers."""
     settings = container.settings
-    return AuthConfigOut(github=settings.github_login_enabled, demo=settings.auth_dev_login)
+    demo = settings.demo_login_open(datetime.now(UTC))
+    return AuthConfigOut(
+        github=settings.github_login_enabled,
+        demo=demo,
+        demo_until=settings.demo_until if demo else None,
+    )
 
 
 @router.get("/auth/github/login", status_code=status.HTTP_302_FOUND)
@@ -111,10 +116,12 @@ async def github_callback(
 @router.post("/auth/demo", response_model=MeOut)
 async def demo_login(session: SessionDep, container: ContainerDep, response: Response) -> MeOut:
     """Sign in as a shared demo user, for trying the app without an OAuth app."""
-    if not container.settings.auth_dev_login:
+    if not container.settings.demo_login_open(datetime.now(UTC)):
         raise ProblemError(404, "Demo sign-in is disabled")
     user = await accounts.sign_in(session, DEMO)
-    await _start_session(response, session, container.settings, user.id)
+    await _start_session(
+        response, session, container.settings, user.id, ends_at=container.settings.demo_ends_at
+    )
     workspace = (await accounts.workspaces_of(session, user.id))[0]
     return MeOut(
         user=UserOut(name=user.name, email=user.email, avatar_url=user.avatar_url, provider="demo"),
@@ -176,9 +183,16 @@ def _callback_url(settings: Settings) -> str:
 
 
 async def _start_session(
-    response: Response, session: SessionDep, settings: Settings, user_id: int
+    response: Response,
+    session: SessionDep,
+    settings: Settings,
+    user_id: int,
+    *,
+    ends_at: datetime | None = None,
 ) -> None:
     ttl = timedelta(hours=settings.session_ttl_hours)
+    if ends_at is not None:
+        ttl = min(ttl, ends_at - datetime.now(UTC))
     token = await sessions.create(session, user_id, ttl)
     response.set_cookie(
         sessions.COOKIE_NAME,

@@ -109,6 +109,7 @@ class JobOut(BaseModel):
 class AuthConfigOut(BaseModel):
     github: bool
     demo: bool
+    demo_until: date | None = Field(description="Last day of a time-boxed public demo.")
 
 
 class UserOut(BaseModel):

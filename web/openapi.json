@@ -1079,12 +1079,26 @@
           "demo": {
             "type": "boolean",
             "title": "Demo"
+          },
+          "demo_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Until",
+            "description": "Last day of a time-boxed public demo."
           }
         },
         "type": "object",
         "required": [
           "github",
-          "demo"
+          "demo",
+          "demo_until"
         ],
         "title": "AuthConfigOut"
       },

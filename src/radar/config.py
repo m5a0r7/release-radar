@@ -1,3 +1,4 @@
+from datetime import UTC, date, datetime, time, timedelta
 from functools import lru_cache
 from typing import Literal
 
@@ -33,7 +34,12 @@ class Settings(BaseSettings):
     github_oauth_client_id: str | None = None
     github_oauth_client_secret: SecretStr | None = None
     auth_dev_login: bool = Field(
-        default=True, description="Offer a no-setup demo sign-in. Never enabled in production."
+        default=True,
+        description="Offer a no-setup demo sign-in. In production only with DEMO_UNTIL set.",
+    )
+    demo_until: date | None = Field(
+        default=None,
+        description="Last day (UTC) of a public demo. Demo sign-in and demo sessions end with it.",
     )
     session_ttl_hours: int = Field(default=24 * 14, ge=1)
     session_cookie_secure: bool = False
@@ -86,6 +92,15 @@ class Settings(BaseSettings):
     def _blank_secret_is_unset(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value
 
+    @field_validator("database_url")
+    @classmethod
+    def _use_asyncpg(cls, value: str) -> str:
+        # Hosted Postgres (Railway, Neon, Heroku) hands out plain postgres:// URLs.
+        for prefix in ("postgres://", "postgresql://"):
+            if value.startswith(prefix):
+                return "postgresql+asyncpg://" + value.removeprefix(prefix)
+        return value
+
     @field_validator("app_base_url")
     @classmethod
     def _strip_trailing_slash(cls, value: str) -> str:
@@ -93,11 +108,23 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _production_is_locked_down(self) -> "Settings":
-        if self.environment == "production" and self.auth_dev_login:
-            raise ValueError("AUTH_DEV_LOGIN must be false in production")
+        if self.environment == "production" and self.auth_dev_login and self.demo_until is None:
+            raise ValueError(
+                "AUTH_DEV_LOGIN in production needs DEMO_UNTIL, so a public demo has an end date"
+            )
         if (self.github_oauth_client_id is None) != (self.github_oauth_client_secret is None):
             raise ValueError("set both GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET")
         return self
+
+    @property
+    def demo_ends_at(self) -> datetime | None:
+        if self.demo_until is None:
+            return None
+        return datetime.combine(self.demo_until + timedelta(days=1), time(), UTC)
+
+    def demo_login_open(self, now: datetime) -> bool:
+        ends = self.demo_ends_at
+        return self.auth_dev_login and (ends is None or now < ends)
 
     @property
     def github_login_enabled(self) -> bool:

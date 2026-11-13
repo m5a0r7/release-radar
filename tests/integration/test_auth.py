@@ -1,4 +1,7 @@
+import re
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qs, unquote_plus, urlparse
 
@@ -88,8 +91,45 @@ async def test_demo_session_cookie_is_locked_down_and_revocable(
 async def test_auth_config_reports_available_methods(
     anonymous: httpx.AsyncClient, oauth_client: httpx.AsyncClient
 ) -> None:
-    assert (await anonymous.get("/v1/auth/config")).json() == {"github": False, "demo": True}
-    assert (await oauth_client.get("/v1/auth/config")).json() == {"github": True, "demo": True}
+    assert (await anonymous.get("/v1/auth/config")).json() == {
+        "github": False,
+        "demo": True,
+        "demo_until": None,
+    }
+    assert (await oauth_client.get("/v1/auth/config")).json()["github"] is True
+
+
+@asynccontextmanager
+async def demo_client(settings: Settings, until: date) -> AsyncIterator[httpx.AsyncClient]:
+    demo = Settings.model_validate(
+        settings.model_dump() | {"environment": "production", "demo_until": until}
+    )
+    demo_container = Container.build(demo)
+    try:
+        async with client_for(demo_container, demo) as client:
+            yield client
+    finally:
+        await demo_container.aclose()
+
+
+async def test_public_demo_closes_after_its_last_day(
+    settings: Settings, container: Container
+) -> None:
+    today = datetime.now(UTC).date()
+    async with demo_client(settings, today) as open_demo:
+        config = (await open_demo.get("/v1/auth/config")).json()
+        signed_in = await open_demo.post("/v1/auth/demo")
+    async with demo_client(settings, today - timedelta(days=1)) as closed_demo:
+        closed = (await closed_demo.get("/v1/auth/config")).json()
+        refused = await closed_demo.post("/v1/auth/demo")
+
+    assert config["demo"] is True and config["demo_until"] == today.isoformat()
+    assert signed_in.status_code == 200
+    # The session cannot outlive the demo: it ends at midnight UTC after the last day.
+    max_age = re.search(r"Max-Age=(\d+)", signed_in.headers["set-cookie"])
+    assert max_age is not None and 0 < int(max_age[1]) <= 86_400
+    assert closed == {"github": False, "demo": False, "demo_until": None}
+    assert refused.status_code == 404
 
 
 async def test_github_sign_in_creates_account_and_workspace(

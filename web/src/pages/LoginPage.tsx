@@ -57,6 +57,16 @@ export function LoginPage() {
                 {demo.isPending ? 'Signing in…' : 'Try the demo account'}
               </Button>
             )}
+            {config.data?.demo_until && (
+              <p className="text-center text-xs text-zinc-500">
+                The shared demo account is open until{' '}
+                {new Date(`${config.data.demo_until}T00:00:00Z`).toLocaleDateString(undefined, {
+                  dateStyle: 'long',
+                  timeZone: 'UTC',
+                })}
+                .
+              </p>
+            )}
             {config.data && !config.data.github && !config.data.demo && (
               <p className="text-sm text-zinc-500">
                 No sign-in method is configured. Set GITHUB_OAUTH_CLIENT_ID and
