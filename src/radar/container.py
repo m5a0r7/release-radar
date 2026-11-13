@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import httpx
+import structlog
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from radar.auth.github import GitHubOAuth
@@ -11,6 +12,8 @@ from radar.ingest.service import SyncService
 from radar.narrative.llm import AnthropicLLM
 from radar.narrative.quota import LlmLimits, UsageLedger
 from radar.narrative.service import NarrativeLimits, NarrativeService
+
+log = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -33,6 +36,11 @@ class Container:
         sessions = create_session_factory(engine)
         connectors = Connectors(settings)
         llm = AnthropicLLM(settings) if settings.llm_provider == "anthropic" else None
+        log.info(
+            "llm_config",
+            provider=settings.llm_provider,
+            model=settings.anthropic_model if llm is not None else "template",
+        )
         oauth_client = httpx.AsyncClient(timeout=httpx.Timeout(15.0))
         github_oauth = (
             GitHubOAuth(settings, oauth_client) if settings.github_login_enabled else None

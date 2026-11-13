@@ -17,8 +17,11 @@ export default defineRailway(() => {
     DEMO_UNTIL: "2026-12-12",
     SESSION_COOKIE_SECURE: "true",
     GITHUB_TOKEN: preserve(),
-    LLM_PROVIDER: "template",
+    // Set on the api service in the dashboard. A fixed value here is reapplied on
+    // every config deploy and turns the model back off.
+    LLM_PROVIDER: preserve(),
     ANTHROPIC_API_KEY: preserve(),
+    ANTHROPIC_MODEL: preserve(),
   };
 
   const api = service("api", {

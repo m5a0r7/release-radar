@@ -97,6 +97,13 @@ class NarrativeService:
             if cached is not None:
                 response = NarrativeResponse.model_validate(cached.payload)
                 response.meta.cached = True
+                log.info(
+                    "narrative_served",
+                    provider=response.meta.provider,
+                    model=response.meta.model,
+                    cached=True,
+                    degraded=response.meta.degraded,
+                )
                 return response
 
         if self._llm is not None and fitted is None:
@@ -107,6 +114,13 @@ class NarrativeService:
             draft, errors, degraded = await self._draft(report, evidence, workspace_id)
         response = _assemble(report, evidence, draft, cap, provider, model, degraded, errors)
         response.caveats += [] if degraded else notes
+        log.info(
+            "narrative_served",
+            provider=response.meta.provider,
+            model=response.meta.model,
+            cached=False,
+            degraded=response.meta.degraded,
+        )
         if not degraded:
             await session.execute(
                 insert(Narrative)
