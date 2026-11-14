@@ -54,9 +54,10 @@ curl -s -b jar localhost:8000/v1/projects/kafka/releases/4.5.0/narrative
 
 Interactive API docs: <http://localhost:8000/docs>.
 
-Without `ANTHROPIC_API_KEY` the narrative uses the deterministic `template` provider. To use
-Claude, set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` in `.env`, then
-`docker compose up -d`. Without `GITHUB_TOKEN`, GitHub allows 60 requests/hour, which is enough
+With `LLM_PROVIDER=template` the narrative is a deterministic summary and needs no key. For
+Claude, set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`. For OpenAI, set `LLM_PROVIDER=openai`
+and `OPENAI_API_KEY` (the default model is `gpt-6-luna`). Then `docker compose up -d`. Without
+`GITHUB_TOKEN`, GitHub allows 60 requests/hour, which is enough
 for one 120-day sync of `apache/kafka`; a token with no scopes raises it to 5,000.
 
 ### Sign in with GitHub
@@ -89,7 +90,7 @@ existed land in an "Imported projects" workspace that the first user to sign in 
 
 3. In the dashboard, open the **web** service and generate a public domain. `APP_BASE_URL` on **api** is that domain, so GitHub can send people back to the site.
 4. Create an OAuth app at <https://github.com/settings/developers>. Set the callback URL to `https://<the web domain>/v1/auth/github/callback`. On the **api** service, set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET`, then redeploy **api**. The login page then shows **Continue with GitHub**, and the first sign-in creates the account.
-5. On **api** and **worker**, set `GITHUB_TOKEN` (a token with no scopes). Without it GitHub allows 60 requests an hour, which a sync uses up. To turn on live explanations, also set `ANTHROPIC_API_KEY` on **api** and change `LLM_PROVIDER` to `anthropic`.
+5. On **api** and **worker**, set `GITHUB_TOKEN` (a token with no scopes). Without it GitHub allows 60 requests an hour, which a sync uses up. To turn on live explanations, set one provider on **api**: `LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`, or `LLM_PROVIDER=openai` with `OPENAI_API_KEY`. `OPENAI_MODEL` defaults to `gpt-6-luna` when unset.
 6. Open the web URL. **Try the demo account** stays available through the date on the login page.
 
 The file deploys the private repo `m5a0r7/release-radar`, branch `main`. Grant the [Railway GitHub App](https://github.com/apps/railway-app/installations/new) access to that repo before `railway config apply`.

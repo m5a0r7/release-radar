@@ -17,11 +17,13 @@ export default defineRailway(() => {
     DEMO_UNTIL: "2026-12-12",
     SESSION_COOKIE_SECURE: "true",
     GITHUB_TOKEN: preserve(),
-    // Set on the api service in the dashboard. A fixed value here is reapplied on
-    // every config deploy and turns the model back off.
+    // Set on the api service in the dashboard: anthropic, openai, or template.
+    // preserve() keeps a later config apply from turning the model back off.
     LLM_PROVIDER: preserve(),
     ANTHROPIC_API_KEY: preserve(),
     ANTHROPIC_MODEL: preserve(),
+    OPENAI_API_KEY: preserve(),
+    OPENAI_MODEL: preserve(),
   };
 
   const api = service("api", {

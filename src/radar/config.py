@@ -47,9 +47,11 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = 60.0
     http_max_retries: int = Field(default=4, ge=0, le=10)
 
-    llm_provider: Literal["anthropic", "template"] = "template"
+    llm_provider: Literal["anthropic", "openai", "template"] = "template"
     anthropic_api_key: SecretStr | None = None
     anthropic_model: str = "claude-sonnet-5-5"
+    openai_api_key: SecretStr | None = None
+    openai_model: str = "gpt-6-luna"
     llm_max_tokens: int = 2048
     llm_timeout_seconds: float = 90.0
     llm_max_input_tokens: int = Field(
@@ -84,6 +86,7 @@ class Settings(BaseSettings):
     @field_validator(
         "github_token",
         "anthropic_api_key",
+        "openai_api_key",
         "github_oauth_client_id",
         "github_oauth_client_secret",
         mode="before",

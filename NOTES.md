@@ -4,7 +4,8 @@
 
 See the [README quickstart](README.md#60-second-quickstart): `cp .env.example .env`,
 `docker compose up --build -d`, then open <http://localhost:8080> or use the `curl` commands. Optional env vars: `GITHUB_TOKEN`
-(no scopes needed), `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`.
+(no scopes needed), `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`, or `LLM_PROVIDER=openai` +
+`OPENAI_API_KEY`.
 
 ## Architecture
 

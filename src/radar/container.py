@@ -9,7 +9,7 @@ from radar.config import Settings
 from radar.connectors.registry import Connectors
 from radar.db.session import create_engine, create_session_factory
 from radar.ingest.service import SyncService
-from radar.narrative.llm import AnthropicLLM
+from radar.narrative.llm import AnthropicLLM, OpenAILLM, build_llm
 from radar.narrative.quota import LlmLimits, UsageLedger
 from radar.narrative.service import NarrativeLimits, NarrativeService
 
@@ -26,7 +26,7 @@ class Container:
     connectors: Connectors
     sync: SyncService
     narratives: NarrativeService
-    llm: AnthropicLLM | None
+    llm: AnthropicLLM | OpenAILLM | None
     oauth_client: httpx.AsyncClient
     github_oauth: GitHubOAuth | None
 
@@ -35,11 +35,11 @@ class Container:
         engine = create_engine(settings.database_url)
         sessions = create_session_factory(engine)
         connectors = Connectors(settings)
-        llm = AnthropicLLM(settings) if settings.llm_provider == "anthropic" else None
+        llm = build_llm(settings)
         log.info(
             "llm_config",
             provider=settings.llm_provider,
-            model=settings.anthropic_model if llm is not None else "template",
+            model=llm.model if llm is not None else "template",
         )
         oauth_client = httpx.AsyncClient(timeout=httpx.Timeout(15.0))
         github_oauth = (
